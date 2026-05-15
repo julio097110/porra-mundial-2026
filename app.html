@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Porra Mundial 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ── Loading overlay ───────────────────────────────── -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- ── Topbar ─────────────────────────────────────────── -->
+  <header class="app-topbar" id="appTopbar">
+    <span class="app-topbar-title" id="appTopbarTitle">
+      Porra <span>Mundial</span> 2026
+    </span>
+    <div class="app-topbar-spacer"></div>
+
+    <!-- Selector de idioma -->
+    <button class="lang-btn" data-lang="es" id="btnLangES" onclick="window.appCambiarIdioma('es')">ES</button>
+    <button class="lang-btn" data-lang="en" id="btnLangEN" onclick="window.appCambiarIdioma('en')" style="margin-left:4px; margin-right:10px;">EN</button>
+
+    <!-- Usuario + badge admin -->
+    <span class="app-topbar-user">
+      <span id="topbarUsername">—</span>
+      <span class="admin-badge hidden" id="topbarAdminBadge">Admin</span>
+    </span>
+
+    <!-- Logout -->
+    <button
+      class="lang-btn"
+      style="margin-left:10px;"
+      onclick="window.appLogout()"
+      id="btnLogout"
+    >—</button>
+  </header>
+
+  <!-- ── Tabs de navegación ─────────────────────────────── -->
+  <nav class="app-tabs" id="appTabs" role="tablist">
+    <button class="app-tab active" id="tabMiPorra"     onclick="window.appMostrarTab('miPorra')"     role="tab" aria-selected="true">
+      <span class="tab-icon">⚽</span>
+      <span class="tab-label" id="tabLabelMiPorra">Mi porra</span>
+    </button>
+    <button class="app-tab" id="tabResultados"   onclick="window.appMostrarTab('resultados')"   role="tab" aria-selected="false">
+      <span class="tab-icon">📋</span>
+      <span class="tab-label" id="tabLabelResultados">Resultados</span>
+    </button>
+    <button class="app-tab" id="tabClasificacion" onclick="window.appMostrarTab('clasificacion')" role="tab" aria-selected="false">
+      <span class="tab-icon">🏅</span>
+      <span class="tab-label" id="tabLabelClasificacion">Clasificación</span>
+    </button>
+    <button class="app-tab" id="tabPrevisiones"  onclick="window.appMostrarTab('previsiones')"  role="tab" aria-selected="false">
+      <span class="tab-icon">👁️</span>
+      <span class="tab-label" id="tabLabelPrevisiones">Previsiones</span>
+    </button>
+    <!-- Tab admin (oculto para jugadores normales) -->
+    <button class="app-tab hidden" id="tabAdmin" onclick="window.appMostrarTab('admin')" role="tab" aria-selected="false">
+      <span class="tab-icon">⚙️</span>
+      <span class="tab-label" id="tabLabelAdmin">Admin</span>
+    </button>
+  </nav>
+
+  <!-- ── Contenido principal ───────────────────────────── -->
+  <main class="app-content" id="appContent">
+    <div class="app-inner">
+
+      <!-- ── MI PORRA ──────────────────────────────────── -->
+      <section id="secMiPorra" role="tabpanel">
+        <div id="miPorraContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingMiPorra">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── RESULTADOS ─────────────────────────────────── -->
+      <section id="secResultados" class="hidden" role="tabpanel">
+        <div id="resultadosContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingResultados">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CLASIFICACIÓN ──────────────────────────────── -->
+      <section id="secClasificacion" class="hidden" role="tabpanel">
+        <div id="clasificacionContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingClasificacion">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── PREVISIONES DE TODOS ───────────────────────── -->
+      <section id="secPrevisiones" class="hidden" role="tabpanel">
+        <div id="previsionesContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingPrevisiones">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── PANEL ADMIN ────────────────────────────────── -->
+      <section id="secAdmin" class="hidden" role="tabpanel">
+        <div id="adminContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingAdmin">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ── Modal genérico (confirmaciones, formularios) ───── -->
+  <div class="modal-overlay hidden" id="modalOverlay" onclick="window.appCerrarModal(event)">
+    <div class="modal" id="modalBox" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <span class="modal-title" id="modalTitle">—</span>
+        <button class="modal-close" onclick="window.appCerrarModal()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer" id="modalFooter"></div>
+    </div>
+  </div>
+
+  <!-- ── Toast de notificación ─────────────────────────── -->
+  <div
+    id="toast"
+    style="
+      position:fixed; bottom:90px; left:50%; transform:translateX(-50%);
+      background:var(--gd,#1e3d0a); color:#eaf3de;
+      padding:10px 20px; border-radius:8px; font-size:13px; font-weight:500;
+      box-shadow:0 4px 16px rgba(0,0,0,.25); z-index:999;
+      opacity:0; transition:opacity .3s; pointer-events:none;
+      white-space:nowrap; max-width:90vw; text-align:center;
+    "
+  ></div>
+
+  <!-- ── Scripts ───────────────────────────────────────── -->
+  <script type="module">
+    import { initI18n, applyTranslations, t, setLang, getLang, updateLangToggle } from './js/i18n.js';
+    import { auth, db } from './js/firebase-config.js';
+    import {
+      onAuthStateChanged, signOut
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import {
+      doc, getDoc
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    // ── Estado global de la app ──────────────────────────
+    window._app = {
+      usuario:    null,   // perfil del usuario logueado
+      uid:        null,
+      esAdmin:    false,
+      tabActual:  'miPorra',
+      modulosCargados: {}
+    };
+
+    // ── Redirigir si no hay sesión ───────────────────────
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = 'index.html';
+        return;
+      }
+
+      window._app.uid = user.uid;
+
+      try {
+        // Cargar perfil del usuario
+        const snap = await getDoc(doc(db, 'usuarios', user.uid));
+        if (!snap.exists()) {
+          // Usuario existe en Auth pero no en Firestore → logout
+          await signOut(auth);
+          window.location.href = 'index.html';
+          return;
+        }
+
+        const perfil = snap.data();
+        window._app.usuario = { uid: user.uid, ...perfil };
+        window._app.esAdmin = perfil.rol === 'admin';
+
+        // Inicializar idioma con preferencia del usuario
+        await initI18n(perfil);
+        actualizarTextos();
+        updateLangToggle();
+
+        // Mostrar nombre y badge admin
+        document.getElementById('topbarUsername').textContent =
+          perfil.nombre_visible || perfil.username || '—';
+        if (window._app.esAdmin) {
+          document.getElementById('topbarAdminBadge').classList.remove('hidden');
+          document.getElementById('tabAdmin').classList.remove('hidden');
+        }
+
+        // Ocultar overlay de carga
+        document.getElementById('loadingOverlay').classList.add('hidden');
+
+        // Cargar primera pestaña
+        await window.appMostrarTab('miPorra');
+
+      } catch (e) {
+        console.error('[app] Error al cargar perfil:', e);
+        mostrarToast('Error al cargar tu perfil. Recarga la página.', 5000);
+        document.getElementById('loadingOverlay').classList.add('hidden');
+      }
+    });
+
+    // ── Actualizar todos los textos según idioma ─────────
+    function actualizarTextos() {
+      const lang = getLang();
+
+      // Título
+      document.getElementById('appTopbarTitle').innerHTML = lang === 'en'
+        ? 'WorldCup <span>2026</span> Pool'
+        : 'Porra <span>Mundial</span> 2026';
+      document.title = lang === 'en'
+        ? 'WorldCup 2026 Pool'
+        : 'Porra Mundial 2026';
+
+      // Tabs
+      document.getElementById('tabLabelMiPorra').textContent      = t('nav.myPool');
+      document.getElementById('tabLabelResultados').textContent   = t('nav.scores');
+      document.getElementById('tabLabelClasificacion').textContent= t('nav.standings');
+      document.getElementById('tabLabelPrevisiones').textContent  = t('nav.allPredictions');
+      document.getElementById('tabLabelAdmin').textContent        = t('nav.adminPanel');
+
+      // Botón logout
+      document.getElementById('btnLogout').textContent = t('nav.logout');
+
+      // Loadings
+      document.getElementById('loadingMiPorra').textContent      = t('common.loading');
+      document.getElementById('loadingResultados').textContent   = t('common.loading');
+      document.getElementById('loadingClasificacion').textContent= t('common.loading');
+      document.getElementById('loadingPrevisiones').textContent  = t('common.loading');
+      document.getElementById('loadingAdmin').textContent        = t('common.loading');
+
+      // Sincronizar botones de idioma
+      document.getElementById('btnLangES').classList.toggle('active', lang === 'es');
+      document.getElementById('btnLangEN').classList.toggle('active', lang === 'en');
+    }
+
+    // ── Cambiar idioma ───────────────────────────────────
+    window.appCambiarIdioma = async (lang) => {
+      await setLang(lang, window._app.uid);
+      actualizarTextos();
+
+      // Recargar el módulo activo para que use el nuevo idioma
+      const tab = window._app.tabActual;
+      window._app.modulosCargados = {};
+      await window.appMostrarTab(tab);
+    };
+
+    // ── Logout ───────────────────────────────────────────
+    window.appLogout = async () => {
+      try {
+        await signOut(auth);
+        window.location.href = 'index.html';
+      } catch (e) {
+        console.error('[logout]', e);
+      }
+    };
+
+    // ── Navegación entre pestañas ────────────────────────
+    window.appMostrarTab = async (tab) => {
+      // Ocultar todas las secciones
+      const secciones = ['miPorra','resultados','clasificacion','previsiones','admin'];
+      secciones.forEach(s => {
+        document.getElementById('sec' + capitalizar(s)).classList.add('hidden');
+        document.getElementById('tab'  + capitalizar(s))?.setAttribute('aria-selected','false');
+        document.getElementById('tab'  + capitalizar(s))?.classList.remove('active');
+      });
+
+      // Mostrar la seleccionada
+      const secId = 'sec' + capitalizar(tab);
+      const tabId = 'tab' + capitalizar(tab);
+      document.getElementById(secId).classList.remove('hidden');
+      document.getElementById(tabId)?.setAttribute('aria-selected','true');
+      document.getElementById(tabId)?.classList.add('active');
+      window._app.tabActual = tab;
+
+      // Scroll al top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // Cargar módulo si no estaba cargado
+      if (!window._app.modulosCargados[tab]) {
+        window._app.modulosCargados[tab] = true;
+        await cargarModulo(tab);
+      }
+    };
+
+    async function cargarModulo(tab) {
+      try {
+        switch (tab) {
+          case 'miPorra':
+            const { initMiPorra } = await import('./js/prediccion.js');
+            await initMiPorra(window._app);
+            break;
+          case 'resultados':
+            const { initResultados } = await import('./js/resultados.js');
+            await initResultados(window._app);
+            break;
+          case 'clasificacion':
+            const { initClasificacion } = await import('./js/clasificacion.js');
+            await initClasificacion(window._app);
+            break;
+          case 'previsiones':
+            const { initPrevisiones } = await import('./js/previsiones.js');
+            await initPrevisiones(window._app);
+            break;
+          case 'admin':
+            if (window._app.esAdmin) {
+              const { initAdmin } = await import('./js/admin.js');
+              await initAdmin(window._app);
+            }
+            break;
+        }
+      } catch (e) {
+        console.error(`[app] Error al cargar módulo ${tab}:`, e);
+        const contenedor = document.getElementById(tab + 'Content') ||
+                           document.getElementById(capitalizar(tab) + 'Content');
+        if (contenedor) {
+          contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}. Recarga la página.</div>`;
+        }
+      }
+    }
+
+    // ── Modal ────────────────────────────────────────────
+    window.appAbrirModal = (titulo, bodyHtml, footerHtml = '') => {
+      document.getElementById('modalTitle').textContent  = titulo;
+      document.getElementById('modalBody').innerHTML     = bodyHtml;
+      document.getElementById('modalFooter').innerHTML   = footerHtml;
+      document.getElementById('modalOverlay').classList.remove('hidden');
+    };
+
+    window.appCerrarModal = (e) => {
+      if (!e || e.target === document.getElementById('modalOverlay')) {
+        document.getElementById('modalOverlay').classList.add('hidden');
+      }
+    };
+
+    // ── Toast ─────────────────────────────────────────────
+    window.mostrarToast = (msg, duracion = 3000) => {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, duracion);
+    };
+
+    // ── Helper ───────────────────────────────────────────
+    function capitalizar(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    // Exponer t() globalmente para los módulos
+    window._t = t;
+
+  </script>
+
+</body>
+</html>

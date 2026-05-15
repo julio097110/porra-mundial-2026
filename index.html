@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Porra Mundial 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ── Selector de idioma ─────────────────────────────── -->
+  <div class="login-lang">
+    <button class="lang-btn active" data-lang="es" onclick="cambiarIdioma('es')">ES</button>
+    <button class="lang-btn"        data-lang="en" onclick="cambiarIdioma('en')">EN</button>
+  </div>
+
+  <!-- ── Página de login ───────────────────────────────── -->
+  <div class="login-page">
+    <div class="login-wrap">
+
+      <!-- Hero -->
+      <div class="login-hero">
+        <div class="login-hero-ball">⚽</div>
+        <h1 class="login-hero-title" id="appName">
+          Porra <span>Mundial</span> 2026
+        </h1>
+        <p class="login-hero-sub" id="appTagline">Canadá · México · Estados Unidos</p>
+        <div class="login-hero-pills">
+          <span class="login-hero-pill">11 jun – 19 jul 2026</span>
+          <span class="login-hero-pill">48 equipos · 104 partidos</span>
+        </div>
+      </div>
+
+      <!-- Card de login -->
+      <div class="login-card">
+        <div class="login-card-top">
+          <span class="login-card-top-title" data-i18n="login.title">Iniciar sesión</span>
+          <span class="login-card-top-info">🔒 <span data-i18n="login.privateAccess">Acceso privado</span></span>
+        </div>
+        <div class="login-card-body">
+
+          <!-- Error -->
+          <div class="login-error hidden" id="loginError" role="alert">
+            ⚠️ <span id="loginErrorMsg"></span>
+          </div>
+
+          <!-- Campo usuario -->
+          <div class="login-field">
+            <label class="login-label" for="inputUser" data-i18n="login.username">Usuario</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon">👤</span>
+              <input
+                class="login-input"
+                type="text"
+                id="inputUser"
+                autocomplete="username"
+                data-i18n-placeholder="login.userPlaceholder"
+                placeholder="Tu nombre de usuario"
+              >
+            </div>
+          </div>
+
+          <!-- Campo contraseña -->
+          <div class="login-field">
+            <label class="login-label" for="inputPass" data-i18n="login.password">Contraseña</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon">🔑</span>
+              <input
+                class="login-input"
+                type="password"
+                id="inputPass"
+                autocomplete="current-password"
+                placeholder="••••••••"
+              >
+            </div>
+          </div>
+
+          <!-- Botón -->
+          <button class="login-submit" id="loginBtn" onclick="handleLogin()">
+            <span id="loginBtnText" data-i18n="login.submit">Entrar</span>
+            <span id="loginBtnSpinner" class="hidden">⏳</span>
+          </button>
+
+          <div class="login-divider">o</div>
+
+          <!-- Enlace a info pública -->
+          <div class="login-info-link">
+            <span data-i18n="login.infoLink">¿Primera vez? Consulta</span>
+            <a href="info.html" id="infoLink"> cómo funciona la porra</a>
+          </div>
+
+        </div>
+      </div>
+
+      <p class="login-footer" data-i18n="login.inviteOnly">Acceso solo por invitación</p>
+
+    </div>
+  </div>
+
+  <!-- ── Scripts ───────────────────────────────────────── -->
+  <script type="module">
+    import { initI18n, applyTranslations, updateLangToggle, setLang, t } from './js/i18n.js';
+    import { auth } from './js/firebase-config.js';
+    import {
+      signInWithEmailAndPassword,
+      onAuthStateChanged
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+    import {
+      getFirestore, doc, getDoc
+    } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    const db = getFirestore();
+
+    // ── Si ya hay sesión activa → redirigir a app ────────
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        window.location.href = 'app.html';
+      }
+    });
+
+    // ── Inicializar idioma ───────────────────────────────
+    await initI18n();
+    applyTranslations();
+    updateLangToggle();
+    actualizarTextoHero();
+
+    // ── Cambiar idioma ───────────────────────────────────
+    window.cambiarIdioma = async (lang) => {
+      await setLang(lang);
+      applyTranslations();
+      updateLangToggle();
+      actualizarTextoHero();
+    };
+
+    function actualizarTextoHero() {
+      const { getLang, t } = window._i18n || {};
+      // Actualiza el nombre según idioma
+      const lang = localStorage.getItem('lang') || 'es';
+      if (lang === 'en') {
+        document.getElementById('appName').innerHTML = 'WorldCup <span>2026</span> Pool';
+        document.getElementById('appTagline').textContent = 'Canada · Mexico · United States';
+        document.getElementById('infoLink').textContent = ' how the pool works';
+      } else {
+        document.getElementById('appName').innerHTML = 'Porra <span>Mundial</span> 2026';
+        document.getElementById('appTagline').textContent = 'Canadá · México · Estados Unidos';
+        document.getElementById('infoLink').textContent = ' cómo funciona la porra';
+      }
+    }
+
+    // ── Login ────────────────────────────────────────────
+    window.handleLogin = async () => {
+      const email    = document.getElementById('inputUser').value.trim();
+      const password = document.getElementById('inputPass').value;
+      const errorDiv = document.getElementById('loginError');
+      const errorMsg = document.getElementById('loginErrorMsg');
+      const btn      = document.getElementById('loginBtn');
+      const spinner  = document.getElementById('loginBtnSpinner');
+      const btnText  = document.getElementById('loginBtnText');
+
+      // Limpiar error previo
+      errorDiv.classList.add('hidden');
+      document.getElementById('inputUser').classList.remove('is-error');
+      document.getElementById('inputPass').classList.remove('is-error');
+
+      if (!email || !password) {
+        mostrarError('Por favor rellena todos los campos.');
+        return;
+      }
+
+      // Estado de carga
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      btnText.classList.add('hidden');
+
+      try {
+        // Firebase Auth usa email — el campo "usuario" puede ser email o nombre
+        // Intentamos primero con el valor como email
+        // Si el usuario ha introducido su nombre visible, lo buscamos en Firestore
+        let loginEmail = email;
+
+        if (!email.includes('@')) {
+          // Buscar email por nombre de usuario en Firestore
+          loginEmail = await buscarEmailPorUsuario(email);
+          if (!loginEmail) {
+            mostrarError(t('login.errorCredentials'));
+            btn.disabled = false;
+            spinner.classList.add('hidden');
+            btnText.classList.remove('hidden');
+            return;
+          }
+        }
+
+        await signInWithEmailAndPassword(auth, loginEmail, password);
+        // onAuthStateChanged se encarga de la redirección
+
+      } catch (error) {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        btnText.classList.remove('hidden');
+
+        if (
+          error.code === 'auth/wrong-password' ||
+          error.code === 'auth/user-not-found' ||
+          error.code === 'auth/invalid-credential'
+        ) {
+          mostrarError(t('login.errorCredentials'));
+        } else {
+          mostrarError(t('login.errorGeneric'));
+          console.error('[Login]', error);
+        }
+
+        document.getElementById('inputUser').classList.add('is-error');
+        document.getElementById('inputPass').classList.add('is-error');
+      }
+    };
+
+    // Busca el email en Firestore a partir del nombre de usuario
+    async function buscarEmailPorUsuario(nombreUsuario) {
+      try {
+        const { collection, query, where, getDocs } = await import(
+          'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+        );
+        const q = query(
+          collection(db, 'usuarios'),
+          where('username', '==', nombreUsuario.toLowerCase())
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          return snap.docs[0].data().email;
+        }
+        return null;
+      } catch (e) {
+        console.error('[buscarEmailPorUsuario]', e);
+        return null;
+      }
+    }
+
+    function mostrarError(msg) {
+      const errorDiv = document.getElementById('loginError');
+      const errorMsg = document.getElementById('loginErrorMsg');
+      errorMsg.textContent = msg;
+      errorDiv.classList.remove('hidden');
+    }
+
+    // ── Enter para hacer login ───────────────────────────
+    document.getElementById('inputPass').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') window.handleLogin();
+    });
+    document.getElementById('inputUser').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') window.handleLogin();
+    });
+
+  </script>
+
+</body>
+</html>

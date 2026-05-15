@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Porra Mundial 2026 — Info</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body style="background:#f0f4ec; margin:0; padding:0;">
+
+  <!-- ── Selector de idioma ─────────────────────────────── -->
+  <div style="position:fixed; top:16px; right:16px; z-index:100; display:flex; gap:5px;">
+    <button class="lang-btn active" data-lang="es" id="btnES" onclick="cambiarIdioma('es')">ES</button>
+    <button class="lang-btn"        data-lang="en" id="btnEN" onclick="cambiarIdioma('en')">EN</button>
+  </div>
+
+  <!-- ── HEADER ────────────────────────────────────────── -->
+  <div class="info-header">
+    <div class="info-header-inner">
+      <div style="font-size:52px; filter:drop-shadow(0 6px 18px rgba(0,0,0,.35)); margin-bottom:10px;">⚽</div>
+      <h1 class="info-title" id="infoTitle">Porra <span>Mundial</span> 2026</h1>
+      <p class="info-subtitle" id="infoSubtitle">Canadá · México · Estados Unidos</p>
+      <p class="info-subtitle" id="infoDates" style="margin-bottom:20px;">11 jun – 19 jul 2026</p>
+      <div class="info-stats">
+        <div class="info-stat-pill">
+          <div class="info-stat-val" id="statPlayers">—</div>
+          <div class="info-stat-lbl" id="statPlayersLbl">Jugadores inscritos</div>
+        </div>
+        <div class="info-stat-pill">
+          <div class="info-stat-val">104</div>
+          <div class="info-stat-lbl" id="statMatchesLbl">Partidos totales</div>
+        </div>
+        <div class="info-stat-pill">
+          <div class="info-stat-val">48</div>
+          <div class="info-stat-lbl" id="statTeamsLbl">Equipos</div>
+        </div>
+        <div class="info-stat-pill">
+          <div class="info-stat-val" id="statStart">11 JUN</div>
+          <div class="info-stat-lbl" id="statStartLbl">Fecha de inicio</div>
+        </div>
+      </div>
+    </div>
+    <svg class="info-wave" viewBox="0 0 1440 40" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0,20 C360,40 1080,0 1440,20 L1440,40 L0,40 Z" fill="#f0f4ec"/>
+    </svg>
+  </div>
+
+  <!-- ── MAIN ──────────────────────────────────────────── -->
+  <div class="info-main">
+
+    <!-- Cómo funciona -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <span class="info-card-icon">📖</span>
+        <span class="info-card-title" id="howTitle">Cómo funciona</span>
+      </div>
+      <div class="info-card-body">
+        <div class="info-steps">
+          <div class="info-step">
+            <div class="info-step-num">1</div>
+            <div>
+              <div class="info-step-title" id="step1title">Regístrate y entra</div>
+              <div class="info-step-text"  id="step1text">El administrador te creará una cuenta. Entra con tus credenciales y elige el nombre con el que quieres aparecer en la clasificación.</div>
+            </div>
+          </div>
+          <div class="info-step">
+            <div class="info-step-num">2</div>
+            <div>
+              <div class="info-step-title" id="step2title">Rellena tus predicciones de grupos</div>
+              <div class="info-step-text"  id="step2text">Antes del 11 de junio a las 00:00 (CET) predice el resultado de los 72 partidos de la fase de grupos y tus apuestas especiales (campeón, segundo, MVP, goleador).</div>
+            </div>
+          </div>
+          <div class="info-step">
+            <div class="info-step-num">3</div>
+            <div>
+              <div class="info-step-title" id="step3title">Rellena el bracket de eliminatorias</div>
+              <div class="info-step-text"  id="step3text">Predice todos los cruces desde 1/16 hasta la final antes del 28 de junio a las 15:00 (CET). Los ganadores que elijas avanzan automáticamente.</div>
+            </div>
+          </div>
+          <div class="info-step">
+            <div class="info-step-num">4</div>
+            <div>
+              <div class="info-step-title" id="step4title">Sigue la clasificación en tiempo real</div>
+              <div class="info-step-text"  id="step4text">Los puntos se calculan automáticamente. ¡Consulta la clasificación y las predicciones de tus rivales en cualquier momento!</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sistema de puntuación -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <span class="info-card-icon">🏆</span>
+        <span class="info-card-title" id="scoringTitle">Sistema de puntuación</span>
+      </div>
+      <div class="info-card-body">
+        <div class="info-scoring-grid">
+
+          <div>
+            <div class="info-scoring-label" id="scoringGroupsLabel">⚽ Fase de grupos</div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sg1">Ganador / empate acertado</span><span class="info-scoring-pts">1 pt</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sg2">Resultado exacto</span><span class="info-scoring-pts">3 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sg3">Empate a puntos acertado (c/u)</span><span class="info-scoring-pts">1 pt</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sg4">Equipo que pasa de grupo (c/u)</span><span class="info-scoring-pts">1 pt</span></div>
+          </div>
+
+          <div>
+            <div class="info-scoring-label" id="scoringKOLabel">⚔️ Eliminatorias</div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sk1">Ganador acertado (90')</span><span class="info-scoring-pts">2 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sk2">Resultado exacto (90')</span><span class="info-scoring-pts">4 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sk3">Empate acertado + quién pasa</span><span class="info-scoring-pts">2 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="sk4">Solo empate acertado</span><span class="info-scoring-pts">1 pt</span></div>
+          </div>
+
+          <div>
+            <div class="info-scoring-label" id="scoringSpecialsLabel">⭐ Predicciones especiales</div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="ss1">Campeón del mundial</span><span class="info-scoring-pts">6 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="ss2">Segundo clasificado</span><span class="info-scoring-pts">2 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="ss3">Mejor jugador (MVP)</span><span class="info-scoring-pts">3 pts</span></div>
+            <div class="info-scoring-row"><span class="info-scoring-text" id="ss4">Máximo goleador</span><span class="info-scoring-pts">3 pts</span></div>
+          </div>
+
+        </div>
+
+        <!-- Ejemplos -->
+        <div class="info-example-box">
+          <div class="info-example-title" id="examplesTitle">💡 Ejemplos prácticos</div>
+          <div class="info-example-row">
+            <span class="info-example-label" id="exPred">Predices:</span>
+            <span class="info-example-match">🇪🇸 España 2 — 1 🇧🇷 Brasil</span>
+            <span class="info-example-label" id="exReal">Real:</span>
+            <span class="info-example-match">🇪🇸 España 2 — 1 🇧🇷 Brasil</span>
+            <span class="info-pts-tag info-pts-exact">+3 pts</span>
+          </div>
+          <div class="info-example-row">
+            <span class="info-example-label" id="exPred2">Predices:</span>
+            <span class="info-example-match">🇫🇷 Francia 2 — 0 🇦🇷 Argentina</span>
+            <span class="info-example-label" id="exReal2">Real:</span>
+            <span class="info-example-match">🇫🇷 Francia 1 — 0 🇦🇷 Argentina</span>
+            <span class="info-pts-tag info-pts-winner">+1 pt</span>
+          </div>
+          <div class="info-example-row">
+            <span class="info-example-label" id="exPred3">Predices:</span>
+            <span class="info-example-match">🇩🇪 Alemania 2 — 0 🇯🇵 Japón</span>
+            <span class="info-example-label" id="exReal3">Real:</span>
+            <span class="info-example-match">🇩🇪 Alemania 0 — 2 🇯🇵 Japón</span>
+            <span class="info-pts-tag info-pts-miss">0 pts</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reparto de premios -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <span class="info-card-icon">💰</span>
+        <span class="info-card-title" id="prizesTitle">Reparto de premios</span>
+      </div>
+      <div class="info-card-body">
+        <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+          <span style="font-size:13px; color:var(--ts);" id="prizesTotalLabel">Bote total:</span>
+          <span style="font-family:'Bebas Neue',sans-serif; font-size:32px; color:var(--gd);" id="prizesTotalAmount">— NOK</span>
+        </div>
+        <div class="group-table">
+          <div style="display:grid; grid-template-columns:36px 1fr 1fr; background:var(--gm); padding:6px 12px; gap:8px;">
+            <div style="font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.5px;">#</div>
+            <div style="font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.5px;" id="prizeColPct">Porcentaje</div>
+            <div style="font-size:10px; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:.5px;" id="prizeColAmt">Premio</div>
+          </div>
+          <div style="display:grid; grid-template-columns:36px 1fr 1fr; padding:9px 12px; border-bottom:1px solid #eef3e8; gap:8px; background:var(--gg);">
+            <div style="font-size:16px;">🥇</div>
+            <div style="font-size:13px; color:var(--ts);" id="prize1Label">1er clasificado — 65%</div>
+            <div style="font-size:14px; font-weight:700; color:var(--gd);" id="prize1Amount">— NOK</div>
+          </div>
+          <div style="display:grid; grid-template-columns:36px 1fr 1fr; padding:9px 12px; border-bottom:1px solid #eef3e8; gap:8px;">
+            <div style="font-size:16px;">🥈</div>
+            <div style="font-size:13px; color:var(--ts);" id="prize2Label">2º clasificado — 25%</div>
+            <div style="font-size:14px; font-weight:700; color:var(--gd);" id="prize2Amount">— NOK</div>
+          </div>
+          <div style="display:grid; grid-template-columns:36px 1fr 1fr; padding:9px 12px; gap:8px;">
+            <div style="font-size:16px;">🥉</div>
+            <div style="font-size:13px; color:var(--ts);" id="prize3Label">3er clasificado — 10%</div>
+            <div style="font-size:14px; font-weight:700; color:var(--gd);" id="prize3Amount">— NOK</div>
+          </div>
+        </div>
+        <p style="font-size:11px; color:var(--tm); margin-top:10px;" id="prizesNote">El administrador aún no ha introducido el bote total</p>
+      </div>
+    </div>
+
+    <!-- Fechas límite -->
+    <div class="info-card">
+      <div class="info-card-header">
+        <span class="info-card-icon">📅</span>
+        <span class="info-card-title" id="datesTitle">Fechas límite</span>
+      </div>
+      <div class="info-card-body">
+
+        <div class="info-date-row">
+          <span class="info-date-icon">⚽</span>
+          <div class="info-date-info">
+            <div class="info-date-label" id="date1Label">Predicciones de grupos + especiales</div>
+            <div class="info-date-sub"   id="date1Sub">Todos los partidos de fase de grupos, campeón, segundo, MVP y goleador</div>
+          </div>
+          <div class="info-date-val" id="date1Val">11 JUN · 00:00 CET</div>
+        </div>
+
+        <div class="info-date-row">
+          <span class="info-date-icon">⚔️</span>
+          <div class="info-date-info">
+            <div class="info-date-label" id="date2Label">Bracket de eliminatorias</div>
+            <div class="info-date-sub"   id="date2Sub">Todos los cruces desde 1/16 hasta la final</div>
+          </div>
+          <div class="info-date-val" id="date2Val">28 JUN · 15:00 CET</div>
+        </div>
+
+        <div class="info-date-row" style="background:#fff8e8; border-color:#f0d88a;">
+          <span class="info-date-icon">⚠️</span>
+          <div class="info-date-info">
+            <div class="info-date-label" id="warningLabel">¡No dejes las predicciones para el último momento!</div>
+            <div class="info-date-sub"   id="warningSub">Una vez cerrado el plazo no se pueden modificar</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Inscripción y pago -->
+    <div class="info-card" id="paymentCard">
+      <div class="info-card-header">
+        <span class="info-card-icon">💳</span>
+        <span class="info-card-title" id="payTitle">Inscripción y pago</span>
+      </div>
+      <div class="info-card-body">
+        <p class="info-step-text" id="payIntro" style="margin-bottom:16px;">
+          Para participar debes abonar la inscripción. Puedes pagar con Revolut o Vipps. Indica tu nombre en el concepto del pago.
+        </p>
+        <div class="info-pay-amount">
+          100 <span id="payAmountLabel">NOK por jugador</span>
+        </div>
+
+        <!-- Botones de pago (se ocultan si porra_llena = true) -->
+        <div id="payBtns" class="info-pay-btns">
+          <a
+            href="https://revolut.me/julioz65d?currency=NOK&amount=10000&note=Porra%20mundial"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="info-pay-btn info-pay-revolut"
+            id="btnRevolut"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect width="24" height="24" rx="6" fill="white" fill-opacity="0.15"/>
+              <path d="M7 6h6.5a3.5 3.5 0 0 1 0 7H7V6zm0 7h4l4 5h-3l-4-5z" fill="white"/>
+            </svg>
+            <span id="btnRevolutText">Pagar con Revolut</span>
+          </a>
+          <a
+            href="https://vipps.no/pay/48420588"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="info-pay-btn info-pay-vipps"
+            id="btnVipps"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="white" fill-opacity="0.2"/>
+              <path d="M8 12c1 2 2.5 3.5 4 3.5S15 14 17 11" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+            <span id="btnVippsText">Pagar con Vipps</span>
+          </a>
+        </div>
+        <p class="info-pay-note" id="vippsNote">Introduce 100 NOK manualmente al pagar con Vipps</p>
+
+        <!-- Aviso de porra llena (oculto por defecto) -->
+        <div class="info-full-notice hidden" id="fullNotice">
+          🔒 <span id="fullNoticeText">Las inscripciones están cerradas</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Mensaje personalizado del admin (si existe) -->
+    <div class="info-card hidden" id="customMsgCard">
+      <div class="info-card-header">
+        <span class="info-card-icon">💬</span>
+        <span class="info-card-title" id="customMsgTitle">Mensaje del organizador</span>
+      </div>
+      <div class="info-card-body">
+        <p class="info-step-text" id="customMsgText"></p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Footer ─────────────────────────────────────────── -->
+  <footer class="info-footer">
+    <p id="footerLoginPrompt" style="margin-bottom:10px;">¿Ya tienes cuenta? Entra a la porra aquí:</p>
+    <a href="index.html" class="info-login-link">
+      🔐 <span id="footerLoginBtn">Iniciar sesión</span>
+    </a>
+    <p style="margin-top:20px;" id="footerText">Porra Mundial 2026 · Administrado por el organizador · No afiliado a la FIFA</p>
+  </footer>
+
+  <!-- ── Scripts ───────────────────────────────────────── -->
+  <script type="module">
+    import { initInfo } from './js/info.js';
+    initInfo();
+  </script>
+
+</body>
+</html>
