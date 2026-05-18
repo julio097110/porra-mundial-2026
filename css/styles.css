@@ -223,36 +223,44 @@ h1, h2, h3 { line-height: 1.2; }
 }
 
 /* ── Tabs (barra de navegación inferior en móvil, superior en desktop) ── */
+/* Opción B: texto verde oscuro sobre fondo verde pálido */
 .app-tabs {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
-  background: #27500a;
+  background: var(--gp);
   display: flex;
-  box-shadow: 0 -2px 8px rgba(0,0,0,.15);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.12);
+  border-top: 1px solid #a8cc7a;
 }
 .app-tab {
   flex: 1; padding: 10px 4px 8px;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  font-size: 10px; color: #97c459;
-  border-top: 2px solid transparent;
-  cursor: pointer; transition: color .15s;
+  font-size: 10px; font-weight: 600; color: var(--gm);
+  border-top: 3px solid transparent;
+  cursor: pointer; transition: background .15s, color .15s;
   -webkit-tap-highlight-color: transparent;
 }
 .app-tab .tab-icon { font-size: 18px; line-height: 1; }
-.app-tab.active { color: var(--gg); border-top-color: var(--gg); }
-.app-tab:hover  { color: var(--gg); }
+.app-tab.active {
+  color: var(--gd);
+  border-top-color: var(--gd);
+  background: var(--gg);
+}
+.app-tab:hover { background: #d4eaad; color: var(--gd); }
 
 /* En desktop las tabs van arriba, justo bajo el topbar */
 @media (min-width: 768px) {
   .app-tabs {
     position: fixed; top: var(--topbar-h); bottom: auto;
-    box-shadow: none; border-bottom: 1px solid rgba(255,255,255,.08);
+    box-shadow: none;
+    border-top: none;
+    border-bottom: 2px solid #a8cc7a;
   }
   .app-tab {
     flex-direction: row; gap: 6px; padding: 10px 16px;
     font-size: 12px; border-top: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
   }
-  .app-tab.active { border-top: none; border-bottom-color: var(--gg); }
+  .app-tab.active { border-top: none; border-bottom-color: var(--gd); background: var(--gg); }
   .app-tab .tab-icon { font-size: 15px; }
 }
 
@@ -534,30 +542,88 @@ h1, h2, h3 { line-height: 1.2; }
 .group-table-note { font-size: 9px; color: var(--tm); margin-top: 4px; display: flex; align-items: center; gap: 3px; }
 
 /* ── Clasificación general (standings) ── */
+/* Usamos flexbox en lugar de grid para garantizar que nombre
+   y puntos siempre queden en la misma línea sin importar
+   el ancho de pantalla ni la longitud del nombre */
+
 .standings-header {
-  display: grid; grid-template-columns: 30px 1fr 42px 42px;
-  background: var(--gm); padding: 7px 12px; gap: 4px;
+  display: flex; align-items: center;
+  background: var(--gm); padding: 7px 12px; gap: 6px;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
-.sh { font-size: 10px; font-weight: 700; color: #fff; text-align: center; text-transform: uppercase; letter-spacing: .4px; }
+.sh {
+  font-size: 10px; font-weight: 700; color: #fff;
+  text-align: center; text-transform: uppercase; letter-spacing: .4px;
+  flex-shrink: 0;
+}
 .sh.left { text-align: left; }
+/* Cabecera: posición fija, nombre flexible, pts/dif fijos, premio fijo */
+.sh-pos   { width: 30px; text-align: center; flex-shrink: 0; }
+.sh-name  { flex: 1; text-align: left; min-width: 0; }
+.sh-pts   { width: 38px; text-align: center; flex-shrink: 0; }
+.sh-diff  { width: 36px; text-align: center; flex-shrink: 0; }
+.sh-prize { width: 80px; text-align: right; flex-shrink: 0; }
+
 .standings-row {
-  display: grid; grid-template-columns: 30px 1fr 42px 42px;
-  padding: 9px 12px; border-bottom: 1px solid #f0f5e8; align-items: center; gap: 4px;
+  display: flex; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid #f0f5e8; gap: 6px;
+  background: #f4f9ee;
 }
 .standings-row:last-child { border-bottom: none; }
 .standings-row.me   { background: var(--gg); }
 .standings-row.top3 { background: #fdfcf0; }
-.s-pos  { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--gm); text-align: center; }
+
+/* Posición: ancho fijo, nunca se encoge */
+.s-pos {
+  font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+  color: var(--gm); text-align: center;
+  width: 30px; flex-shrink: 0;
+}
 .s-pos.gold   { color: var(--gold); }
 .s-pos.silver { color: #888; }
 .s-pos.bronze { color: #a0522d; }
-.s-name { font-size: 13px; font-weight: 600; color: var(--t); display: flex; align-items: center; gap: 5px; }
-.s-you  { font-size: 9px; background: var(--gm); color: #fff; padding: 1px 5px; border-radius: 10px; font-weight: 700; }
-.s-pts  { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--gd); text-align: center; }
-.s-diff { font-size: 11px; color: var(--tm); text-align: center; }
+
+/* Nombre: ocupa todo el espacio disponible, se recorta con ... si es muy largo */
+.s-name {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 600; color: var(--t);
+  display: flex; align-items: center; gap: 5px;
+  overflow: hidden;
+}
+.s-name-text {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.s-you {
+  font-size: 9px; background: var(--gm); color: #fff;
+  padding: 1px 5px; border-radius: 10px; font-weight: 700;
+  flex-shrink: 0; /* el badge nunca se recorta */
+}
+
+/* Puntos: ancho fijo a la derecha del nombre */
+.s-pts {
+  font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+  color: var(--gd); text-align: center;
+  width: 38px; flex-shrink: 0;
+}
+
+/* Diferencia */
+.s-diff {
+  font-size: 11px; color: var(--tm); text-align: center;
+  width: 36px; flex-shrink: 0;
+}
 .s-diff.pos { color: #2d7a2d; }
 .s-diff.neg { color: var(--r); }
+
+/* Premio: solo aparece si hay bote, ancho fijo */
+.s-prize {
+  font-size: 11px; font-weight: 600;
+  text-align: right; white-space: nowrap;
+  width: 80px; flex-shrink: 0;
+}
+.prize-1    { color: var(--gold); }
+.prize-2    { color: #888; }
+.prize-3    { color: #a0522d; }
+.prize-none { color: #ccc; font-weight: 400; font-style: italic; }
 
 /* ── Criterios de puntuación ── */
 .criteria-box {
@@ -922,9 +988,18 @@ h1, h2, h3 { line-height: 1.2; }
 ══════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .stats-row { grid-template-columns: repeat(2,1fr); }
-  .standings-header, .standings-row { grid-template-columns: 24px 1fr 36px 36px; }
+  /* standings ya usa flexbox — en pantallas pequeñas reducimos
+     el ancho de las columnas fijas para dar más espacio al nombre */
+  .s-pos  { width: 24px; font-size: 16px; }
+  .s-pts  { width: 30px; font-size: 16px; }
+  .s-diff { width: 28px; font-size: 10px; }
+  .s-prize { width: 64px; font-size: 10px; }
+  .sh-pos   { width: 24px; }
+  .sh-pts   { width: 30px; }
+  .sh-diff  { width: 28px; }
+  .sh-prize { width: 64px; }
   .admin-table th:nth-child(3),
-  .admin-table td:nth-child(3) { display: none; } /* oculta columna idioma en móvil */
+  .admin-table td:nth-child(3) { display: none; }
   .info-scoring-grid { grid-template-columns: 1fr; }
 }
 

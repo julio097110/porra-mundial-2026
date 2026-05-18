@@ -40,6 +40,12 @@ export async function initClasificacion(app) {
     await cargarRanking();
     renderClasificacion(contenedor);
 
+    // Refrescar textos al cambiar idioma sin recargar desde Firestore
+    window._refreshTextos = () => {
+      const c = document.getElementById('clasificacionContent');
+      if (c) renderClasificacion(c);
+    };
+
     // Escuchar cambios en tiempo real en clasificacion
     _unsubscribe = onSnapshot(
       collection(db, 'clasificacion'),
@@ -152,12 +158,12 @@ function renderClasificacion(contenedor) {
   // Tabla
   html += `
     <div class="standings-wrap">
-      <div class="standings-header" style="grid-template-columns:30px 1fr 42px 42px ${bote ? '80px' : ''};">
-        <div class="sh">#</div>
-        <div class="sh left">${t('standings.player')}</div>
-        <div class="sh">${t('standings.points')}</div>
-        <div class="sh">${t('standings.diff')}</div>
-        ${bote ? `<div class="sh" style="text-align:right;">${t('standings.prizeCol')}</div>` : ''}
+      <div class="standings-header">
+        <div class="sh sh-pos">#</div>
+        <div class="sh sh-name left">${t('standings.player')}</div>
+        <div class="sh sh-pts">${t('standings.points')}</div>
+        <div class="sh sh-diff">${t('standings.diff')}</div>
+        ${bote ? `<div class="sh sh-prize" style="text-align:right;">${t('standings.prizeCol')}</div>` : ''}
       </div>`;
 
   pagina.forEach((jugador, i) => {
@@ -224,11 +230,10 @@ function renderFilaStandings(jugador, pos, p1, p2, p3, destacado = false, mostra
   const medallaEmoji = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '';
 
   return `
-    <div class="standings-row ${rowClass} ${pos <= 3 ? 'top3' : ''}"
-      style="grid-template-columns:30px 1fr 42px 42px ${mostrarPremio ? '80px' : ''};">
+    <div class="standings-row ${rowClass} ${pos <= 3 ? 'top3' : ''}">
       <div class="s-pos ${posClass}">${pos}</div>
       <div class="s-name">
-        ${medallaEmoji ? medallaEmoji + ' ' : ''}${jugador.nombre}
+        <span class="s-name-text">${medallaEmoji ? medallaEmoji + ' ' : ''}${jugador.nombre}</span>
         ${jugador.esYo ? `<span class="s-you">${t('standings.you')}</span>` : ''}
       </div>
       <div class="s-pts">${jugador.total}</div>

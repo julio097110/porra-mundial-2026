@@ -62,6 +62,12 @@ export async function initPrevisiones(app) {
 
     renderPrevisiones(contenedor);
 
+    // Refrescar textos al cambiar idioma
+    window._refreshTextos = () => {
+      const c = document.getElementById('previsionesContent');
+      if (c) renderPrevisiones(c);
+    };
+
   } catch (e) {
     console.error('[previsiones]', e);
     contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;

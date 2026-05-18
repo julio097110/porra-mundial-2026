@@ -257,10 +257,17 @@
       await setLang(lang, window._app.uid);
       actualizarTextos();
 
-      // Recargar el módulo activo para que use el nuevo idioma
       const tab = window._app.tabActual;
-      window._app.modulosCargados = {};
-      await window.appMostrarTab(tab);
+
+      // Si el módulo activo tiene una función refreshTextos,
+      // la llamamos para actualizar solo los textos sin perder el estado.
+      // Si no la tiene, recargamos el módulo entero (comportamiento seguro).
+      if (window._refreshTextos) {
+        window._refreshTextos();
+      } else {
+        window._app.modulosCargados[tab] = false;
+        await cargarModulo(tab);
+      }
     };
 
     // ── Logout ───────────────────────────────────────────
@@ -275,6 +282,9 @@
 
     // ── Navegación entre pestañas ────────────────────────
     window.appMostrarTab = async (tab) => {
+      // Al cambiar de pestaña, limpiamos el refreshTextos del módulo anterior
+      window._refreshTextos = null;
+
       // Ocultar todas las secciones
       const secciones = ['miPorra','resultados','clasificacion','previsiones','admin'];
       secciones.forEach(s => {
@@ -327,6 +337,11 @@
             }
             break;
         }
+
+        // Procesar banderas y emojis del contenido recién renderizado
+        const secEl = document.getElementById('sec' + capitalizar(tab));
+        if (secEl) window.parseTwemoji(secEl);
+
       } catch (e) {
         console.error(`[app] Error al cargar módulo ${tab}:`, e);
         const contenedor = document.getElementById(tab + 'Content') ||
@@ -367,6 +382,31 @@
     // Exponer t() globalmente para los módulos
     window._t = t;
 
+  </script>
+
+  <!-- Twemoji: renderiza banderas correctamente en Windows -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
+  <script>
+    // Configuración base de Twemoji — usamos SVGs de cdnjs para máxima calidad
+    const TWEMOJI_OPTIONS = {
+      folder: 'svg',
+      ext: '.svg',
+      base: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/'
+    };
+
+    // Helper global que cualquier módulo JS puede llamar después de renderizar HTML.
+    // Si no se pasa ningún elemento, procesa todo el body.
+    // Uso desde módulos: window.parseTwemoji(document.getElementById('miPorraContent'))
+    window.parseTwemoji = (element = document.body) => {
+      if (window.twemoji) {
+        twemoji.parse(element, TWEMOJI_OPTIONS);
+      }
+    };
+
+    // Procesar el body inicial (topbar, nombre de usuario, etc.)
+    document.addEventListener('DOMContentLoaded', () => {
+      window.parseTwemoji();
+    });
   </script>
 
 </body>

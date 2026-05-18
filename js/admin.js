@@ -43,6 +43,13 @@ export async function initAdmin(app) {
       cargarEmailLog()
     ]);
     renderAdmin(contenedor);
+
+    // Refrescar textos al cambiar idioma
+    window._refreshTextos = () => {
+      const c = document.getElementById('adminContent');
+      if (c) renderAdmin(c);
+    };
+
   } catch (e) {
     console.error('[admin]', e);
     contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;
@@ -59,14 +66,15 @@ function renderAdmin(contenedor) {
         border-radius:var(--radius); margin-right:14px; padding:12px 0; align-self:flex-start;
         position:sticky; top:calc(var(--topbar-h) + 54px);">
 
-        ${menuItem('resumen',   '📊', t('admin.title').split(' ')[0])}
-        ${menuItem('jugadores', '👥', t('admin.players.title'),
+        ${menuItem('resumen',      '📊', t('admin.title').split(' ')[0])}
+        ${menuItem('jugadores',    '👥', t('admin.players.title'),
           _usuarios.filter(u => !u.pagado).length || 0)}
-        ${menuItem('fechas',    '📅', t('admin.dates.title'))}
-        ${menuItem('pagos',     '💳', t('admin.payments.title'))}
-        ${menuItem('emails',    '📧', t('admin.emails.title'))}
-        ${menuItem('info',      '🌐', t('admin.infoPage.title'))}
-        ${menuItem('especiales','⭐', t('admin.specials.title'))}
+        ${menuItem('predicciones', '👁️', 'Ver predicciones')}
+        ${menuItem('fechas',       '📅', t('admin.dates.title'))}
+        ${menuItem('pagos',        '💳', t('admin.payments.title'))}
+        ${menuItem('emails',       '📧', t('admin.emails.title'))}
+        ${menuItem('info',         '🌐', t('admin.infoPage.title'))}
+        ${menuItem('especiales',   '⭐', t('admin.specials.title'))}
       </div>
 
       <!-- Contenido -->
@@ -103,14 +111,15 @@ function menuItem(sec, icon, label, badge = 0) {
 // ── Renderiza la sección activa ───────────────────────────────
 function renderSeccion() {
   switch (_seccionActiva) {
-    case 'resumen':    return renderResumen();
-    case 'jugadores':  return renderJugadores();
-    case 'fechas':     return renderFechas();
-    case 'pagos':      return renderPagos();
-    case 'emails':     return renderEmails();
-    case 'info':       return renderInfoPage();
-    case 'especiales': return renderEspecialesAdmin();
-    default:           return renderResumen();
+    case 'resumen':       return renderResumen();
+    case 'jugadores':     return renderJugadores();
+    case 'predicciones':  return renderPrediccionesAdmin();
+    case 'fechas':        return renderFechas();
+    case 'pagos':         return renderPagos();
+    case 'emails':        return renderEmails();
+    case 'info':          return renderInfoPage();
+    case 'especiales':    return renderEspecialesAdmin();
+    default:              return renderResumen();
   }
 }
 
@@ -253,6 +262,65 @@ function badgePred(estado) {
   if (estado === 'completo')  return `<span class="pred-ok">✓ ${t('admin.players.predFull')}</span>`;
   if (estado === 'parcial')   return `<span class="pred-partial">⚡ ${t('admin.players.predPartial')}</span>`;
   return `<span class="pred-none">✗ ${t('admin.players.predNone')}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PREDICCIONES DE TODOS (vista admin)
+// ══════════════════════════════════════════════════════════════
+
+function renderPrediccionesAdmin() {
+  return `
+    <div>
+      <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:6px;">
+        👁️ Ver predicciones de todos
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+        Accede a las predicciones de cualquier jugador o bórralas si es necesario.
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="padding:0;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>${t('admin.players.name')}</th>
+                <th>${t('admin.players.predictions')}</th>
+                <th>Ver</th>
+                <th>Borrar</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${_usuarios.map(u => `
+                <tr>
+                  <td><span class="player-name">${u.nombre_visible}</span></td>
+                  <td>${badgePred(u.estadoPred)}</td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm"
+                      onclick="window._adminVerPredicciones('${u.uid}', '${u.nombre_visible}')">
+                      👁️ Ver
+                    </button>
+                  </td>
+                  <td style="display:flex; gap:4px; flex-wrap:wrap;">
+                    <button class="btn btn-danger btn-sm"
+                      onclick="window._adminBorrarPredJugador('${u.uid}', '${u.nombre_visible}', 'grupos')">
+                      Grupos
+                    </button>
+                    <button class="btn btn-danger btn-sm"
+                      onclick="window._adminBorrarPredJugador('${u.uid}', '${u.nombre_visible}', 'eliminatorias')">
+                      Elim.
+                    </button>
+                    <button class="btn btn-danger btn-sm"
+                      onclick="window._adminBorrarPredJugador('${u.uid}', '${u.nombre_visible}', 'especiales')">
+                      Esp.
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -825,6 +893,96 @@ function registrarHandlers() {
       window.mostrarToast('✅ Corregido correctamente');
     } catch (e) {
       console.error('[guardarEsp]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  // Ver predicciones de un jugador — abre un modal con el resumen
+  window._adminVerPredicciones = async (uid, nombre) => {
+    window.appAbrirModal(
+      `👁️ Predicciones de ${nombre}`,
+      `<div class="loading-inline"><div class="spinner-sm"></div><span>Cargando...</span></div>`,
+      ''
+    );
+    try {
+      const [gruposSnap, elimSnap, espSnap] = await Promise.all([
+        getDocs(query(collection(db, 'predicciones'),     where('uid', '==', uid))),
+        getDocs(query(collection(db, 'predicciones_elim'),where('uid', '==', uid))),
+        getDoc(doc(db, 'pred_especiales', uid))
+      ]);
+
+      const nGrupos = gruposSnap.size;
+      const nElim   = elimSnap.size;
+      const esp     = espSnap.exists() ? espSnap.data() : {};
+
+      document.getElementById('modalBody').innerHTML = `
+        <div style="font-size:13px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
+            <span style="color:var(--ts);">⚽ Predicciones de grupos</span>
+            <strong style="color:${nGrupos >= 72 ? 'var(--gl)' : nGrupos > 0 ? 'var(--gold)' : 'var(--r)'};">
+              ${nGrupos} / 72
+            </strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
+            <span style="color:var(--ts);">⚔️ Predicciones de eliminatorias</span>
+            <strong style="color:${nElim > 0 ? 'var(--gl)' : 'var(--tm)'};">${nElim} partidos</strong>
+          </div>
+          <div style="padding:8px 0; border-bottom:1px solid #f0f5e8;">
+            <div style="color:var(--ts); margin-bottom:6px;">⭐ Predicciones especiales</div>
+            <div style="font-size:12px; display:grid; grid-template-columns:1fr 1fr; gap:4px;">
+              <span style="color:var(--tm);">🏆 Campeón:</span><strong>${esp.campeon    || '—'}</strong>
+              <span style="color:var(--tm);">🥈 Subcampeón:</span><strong>${esp.subcampeon || '—'}</strong>
+              <span style="color:var(--tm);">⭐ MVP:</span><strong>${esp.mvp        || '—'}</strong>
+              <span style="color:var(--tm);">⚽ Goleador:</span><strong>${esp.goleador   || '—'}</strong>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('modalFooter').innerHTML =
+        `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
+    } catch (e) {
+      document.getElementById('modalBody').innerHTML =
+        `<div class="notice error">⚠️ ${t('common.error')}</div>`;
+    }
+  };
+
+  // Borrar predicciones de un jugador con confirmación
+  window._adminBorrarPredJugador = (uid, nombre, tipo) => {
+    const labels = { grupos: 'grupos', eliminatorias: 'eliminatorias', especiales: 'especiales' };
+    window.appAbrirModal(
+      `🗑️ Borrar predicciones de ${nombre}`,
+      `<p style="font-size:13px;">¿Seguro que quieres borrar las predicciones de <strong>${nombre}</strong> de <strong>${labels[tipo]}</strong>? Esta acción no se puede deshacer.</p>`,
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
+       <button class="btn btn-danger" onclick="window._adminConfirmarBorradoPred('${uid}', '${nombre}', '${tipo}')">
+         🗑️ Sí, borrar
+       </button>`
+    );
+  };
+
+  window._adminConfirmarBorradoPred = async (uid, nombre, tipo) => {
+    try {
+      window.appCerrarModal();
+      window.mostrarToast('🗑️ Borrando...');
+      const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+
+      if (tipo === 'grupos') {
+        const q    = query(collection(db, 'predicciones'), where('uid', '==', uid));
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      } else if (tipo === 'eliminatorias') {
+        const q    = query(collection(db, 'predicciones_elim'), where('uid', '==', uid));
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      } else if (tipo === 'especiales') {
+        await deleteDoc(doc(db, 'pred_especiales', uid));
+      }
+
+      window.mostrarToast(`✅ Predicciones de ${nombre} borradas`);
+      await cargarUsuarios();
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+    } catch (e) {
+      console.error('[adminBorrarPred]', e);
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     }
   };

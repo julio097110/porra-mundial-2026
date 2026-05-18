@@ -7,8 +7,9 @@
 
 import { db } from './firebase-config.js';
 import {
-  doc, getDoc, setDoc, collection,
-  getDocs, onSnapshot, serverTimestamp
+  doc, getDoc, setDoc, deleteDoc, collection,
+  getDocs, onSnapshot, serverTimestamp,
+  query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_GRUPOS, GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
@@ -39,6 +40,14 @@ export async function initResultados(app) {
     } else {
       renderJugador(contenedor);
     }
+
+    // Refrescar textos al cambiar idioma
+    window._refreshTextos = () => {
+      const c = document.getElementById('resultadosContent');
+      if (!c) return;
+      if (_app.esAdmin) renderAdmin(c);
+      else renderJugador(c);
+    };
 
     // Escuchar cambios en tiempo real
     _unsubscribe = onSnapshot(collection(db, 'resultados'), (snap) => {
@@ -103,6 +112,7 @@ function renderJugador(contenedor) {
 
   html += `</div>`;
   contenedor.innerHTML = html;
+  if (window.parseTwemoji) window.parseTwemoji(contenedor);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -152,12 +162,14 @@ function renderAdmin(contenedor) {
 
   html += `</div>`;
   contenedor.innerHTML = html;
+  if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
   // Handlers
   window._refreshAPI        = () => refreshAPI();
   window._actualizarEquipos = () => actualizarEquiposDesdeAPI();
   window._confirmarRes      = (id) => confirmarResultado(id);
   window._editarRes         = (id) => editarResultado(id);
+  window._borrarRes         = (id) => confirmarBorrarResultado(id);
 }
 
 // ── Tarjeta resultado (jugador, solo lectura) ─────────────────
@@ -222,9 +234,14 @@ function renderTarjetaAdmin(p) {
         </div>
         <div class="match-footer">
           <span class="match-confirmed-label">✓ ${t('scores.confirmed')}</span>
-          <button class="btn btn-secondary btn-sm" onclick="window._editarRes('${p.id}')">
-            ✏️ ${t('scores.editBtn')}
-          </button>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="window._editarRes('${p.id}')">
+              ✏️ ${t('scores.editBtn')}
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="window._borrarRes('${p.id}')">
+              🗑️ Borrar
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -317,16 +334,67 @@ async function confirmarResultado(partidoId) {
 }
 
 function editarResultado(partidoId) {
-  // Quitar el flag confirmado localmente para mostrar los inputs
   if (_resultados[partidoId]) {
-    _resultados[partidoId] = {
-      ..._resultados[partidoId],
-      confirmado: false
-    };
+    _resultados[partidoId] = { ..._resultados[partidoId], confirmado: false };
   }
   const c = document.getElementById('resultadosContent');
   if (c) renderAdmin(c);
 }
+
+// ── Confirmar borrado de resultado + puntos ───────────────────
+function confirmarBorrarResultado(partidoId) {
+  const partido = PARTIDOS_GRUPOS.find(p => p.id === partidoId);
+  const res     = _resultados[partidoId];
+  const titulo  = partido ? `${partido.local} ${res.goles_local} — ${res.goles_visitante} ${partido.visitante}` : partidoId;
+
+  window.appAbrirModal(
+    '🗑️ Borrar resultado',
+    `<p style="font-size:13px;">¿Seguro que quieres borrar el resultado de <strong>${titulo}</strong>?</p>
+     <p style="font-size:12px; color:var(--r); margin-top:8px;">
+       ⚠️ Esto también eliminará los puntos calculados de todos los jugadores para este partido.
+     </p>`,
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
+     <button class="btn btn-danger" onclick="window._ejecutarBorradoRes('${partidoId}')">
+       🗑️ Sí, borrar resultado y puntos
+     </button>`
+  );
+}
+
+window._ejecutarBorradoRes = async (partidoId) => {
+  try {
+    window.appCerrarModal();
+    window.mostrarToast('🗑️ Borrando...');
+
+    const { deleteDoc } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+    );
+
+    // 1. Borrar el documento de resultado
+    await deleteDoc(doc(db, 'resultados', partidoId));
+
+    // 2. Borrar todos los documentos de puntos de este partido
+    const puntosQ    = query(
+      collection(db, 'puntos'),
+      where('partido_id', '==', partidoId)
+    );
+    const puntosSnap = await getDocs(puntosQ);
+    await Promise.all(puntosSnap.docs.map(d => deleteDoc(d.ref)));
+
+    // 3. Actualizar localmente
+    delete _resultados[partidoId];
+
+    // 4. Recalcular totales de clasificación sin este partido
+    await recalcularTotales();
+
+    window.mostrarToast('✅ Resultado y puntos borrados');
+    const c = document.getElementById('resultadosContent');
+    if (c) renderAdmin(c);
+
+  } catch (e) {
+    console.error('[borrarResultado]', e);
+    window.mostrarToast('❌ ' + t('common.error'), 5000);
+  }
+};
 
 // ── Refresh datos de la API ───────────────────────────────────
 async function refreshAPI() {

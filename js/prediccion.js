@@ -17,13 +17,14 @@ import {
 
 // ── Estado del módulo ─────────────────────────────────────────
 let _app         = null;
-let _subTab      = 'grupos';   // 'grupos' | 'eliminatorias'
+let _subTab      = 'grupos';   // 'grupos' | 'eliminatorias' | 'especiales'
 let _grupoActivo = 'A';
-let _predGrupos  = {};         // { partidoId: { local, visitante, desempates } }
-let _predElim    = {};         // { partidoId: { local, visitante, penaltiGanador } }
-let _predEsp     = {};         // { campeon, subcampeon, mvp, goleador }
-let _resultados  = {};         // resultados reales confirmados
-let _bracket     = {};         // cruces de eliminatorias de la API
+let _verTodosGrupos = false;   // ver clasificación de todos los grupos a la vez
+let _predGrupos  = {};
+let _predElim    = {};
+let _predEsp     = {};
+let _resultados  = {};
+let _bracket     = {};
 let _plazoGrupos = true;
 let _plazoElim   = true;
 let _config      = {};
@@ -51,6 +52,16 @@ export async function initMiPorra(app) {
     ]);
 
     renderMiPorra(contenedor);
+
+    // Registrar la función de refresco de textos para el cambio de idioma.
+    // Cuando el usuario pulsa ES/EN, app.html llama a window._refreshTextos()
+    // en lugar de recargar el módulo entero, conservando así el estado
+    // (grupo seleccionado, marcadores no guardados, sub-pestaña activa).
+    window._refreshTextos = () => {
+      const c = document.getElementById('miPorraContent');
+      if (c) renderMiPorra(c);
+    };
+
   } catch (e) {
     console.error('[prediccion]', e);
     contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;
@@ -59,7 +70,6 @@ export async function initMiPorra(app) {
 
 // ── Render principal ──────────────────────────────────────────
 function renderMiPorra(contenedor) {
-  // Stats resumen
   const stats = calcularStats();
 
   contenedor.innerHTML = `
@@ -87,6 +97,8 @@ function renderMiPorra(contenedor) {
         onclick="window._prediccionSetTab('grupos')">${t('subNav.groupStage')}</button>
       <button class="sub-btn ${_subTab === 'eliminatorias' ? 'active' : ''}"
         onclick="window._prediccionSetTab('eliminatorias')">${t('subNav.knockouts')}</button>
+      <button class="sub-btn ${_subTab === 'especiales' ? 'active' : ''}"
+        onclick="window._prediccionSetTab('especiales')">${t('subNav.specials')}</button>
     </div>
 
     <div id="prediccionTabContent"></div>
@@ -94,10 +106,15 @@ function renderMiPorra(contenedor) {
 
   window._prediccionSetTab = (tab) => {
     _subTab = tab;
-    document.querySelectorAll('.sub-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.sub-btn')[tab === 'grupos' ? 0 : 1].classList.add('active');
+    document.querySelectorAll('.sub-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['grupos','eliminatorias','especiales'][i] === tab);
+    });
     renderTabContent();
   };
+
+  window._guardarGrupos   = () => guardarPrediccionesGrupos();
+  window._guardarElim     = () => guardarPrediccionesElim();
+  window._guardarEspeciales = () => guardarPrediccionesEspeciales();
 
   renderTabContent();
 }
@@ -105,11 +122,9 @@ function renderMiPorra(contenedor) {
 // ── Renderiza el contenido de la sub-pestaña activa ───────────
 function renderTabContent() {
   const contenedor = document.getElementById('prediccionTabContent');
-  if (_subTab === 'grupos') {
-    renderGrupos(contenedor);
-  } else {
-    renderEliminatorias(contenedor);
-  }
+  if (_subTab === 'grupos')         renderGrupos(contenedor);
+  else if (_subTab === 'eliminatorias') renderEliminatorias(contenedor);
+  else                              renderEspecialesTab(contenedor);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -117,22 +132,27 @@ function renderTabContent() {
 // ══════════════════════════════════════════════════════════════
 
 function renderGrupos(contenedor) {
-  const cerrado = !_plazoGrupos;
+  const cerrado  = !_plazoGrupos;
+  const fechaStr = formatFechaLimite(_config.fecha_limite_grupos);
 
-  // Selector de grupo
   const selectorGrupos = GRUPOS.map(g =>
-    `<button class="pag-btn ${_grupoActivo === g ? 'active' : ''}"
+    `<button class="pag-btn ${_grupoActivo === g && !_verTodosGrupos ? 'active' : ''}"
       onclick="window._prediccionSetGrupo('${g}')">${g}</button>`
   ).join('');
 
   contenedor.innerHTML = `
     ${cerrado
       ? `<div class="notice locked">🔒 ${t('myPool.closedNotice')}</div>`
-      : `<div class="notice">🔓 ${t('myPool.openUntil')} <strong>${formatFechaLimite(_config.fecha_limite_grupos)}</strong> ${t('myPool.localTime')}</div>`
+      : `<div class="notice">🔓 ${t('myPool.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`
     }
 
-    <div class="pag-row" style="flex-wrap:wrap; margin-bottom:14px;">
+    <div class="pag-row" style="flex-wrap:wrap; margin-bottom:8px; gap:4px;">
       ${selectorGrupos}
+      <button class="pag-btn ${_verTodosGrupos ? 'active' : ''}"
+        onclick="window._prediccionVerTodos()"
+        style="min-width:80px;">
+        ${_verTodosGrupos ? '← Volver' : 'Ver todos'}
+      </button>
     </div>
 
     <div id="grupoContent"></div>
@@ -141,20 +161,67 @@ function renderGrupos(contenedor) {
       <button class="btn btn-primary btn-full" onclick="window._guardarGrupos()">
         💾 ${t('myPool.saveBtn')}
       </button>
+      <button class="btn btn-danger btn-full" style="margin-top:8px;"
+        onclick="window._borrarPredicciones('grupos')">
+        🗑️ Borrar mis predicciones de grupos
+      </button>
     ` : ''}
   `;
 
   window._prediccionSetGrupo = (g) => {
     _grupoActivo = g;
-    document.querySelectorAll('.pag-row .pag-btn').forEach((b, i) => {
-      b.classList.toggle('active', GRUPOS[i] === g);
-    });
-    renderGrupoDetalle(document.getElementById('grupoContent'));
+    _verTodosGrupos = false;
+    renderGrupos(contenedor);
   };
 
-  window._guardarGrupos = () => guardarPrediccionesGrupos();
+  window._prediccionVerTodos = () => {
+    _verTodosGrupos = !_verTodosGrupos;
+    renderGrupos(contenedor);
+  };
 
-  renderGrupoDetalle(document.getElementById('grupoContent'));
+  window._borrarPredicciones = (tipo) => confirmarBorrado(tipo);
+
+  if (_verTodosGrupos) {
+    renderTodosGrupos(document.getElementById('grupoContent'));
+  } else {
+    renderGrupoDetalle(document.getElementById('grupoContent'));
+  }
+}
+
+// ── Clasificación de todos los grupos a la vez ────────────────
+function renderTodosGrupos(contenedor) {
+  let html = '';
+  GRUPOS.forEach(g => {
+    const partidos = getPartidosPorGrupo(g);
+    const equipos  = obtenerEquiposGrupo(g);
+    const tabla    = calcularTablaGrupo(g, partidos, equipos);
+
+    html += `<div class="group-pill" style="margin-bottom:6px;">⚽ ${t('common.group')} ${g}</div>
+    <div class="group-table" style="margin-bottom:14px;">
+      <div class="group-table-header">
+        <div class="gt-head">#</div>
+        <div class="gt-head left">Equipo</div>
+        <div class="gt-head">J</div><div class="gt-head">G</div>
+        <div class="gt-head">E</div><div class="gt-head">P</div>
+        <div class="gt-head">Pts</div>
+      </div>`;
+    tabla.forEach((eq, i) => {
+      html += `
+        <div class="group-table-row ${i < 2 ? 'qualifies' : ''}">
+          <div class="gt-pos">${i + 1}</div>
+          <div class="gt-team">
+            <span class="gt-flag">${eq.flag}</span>
+            <span class="gt-name">${eq.nombre}</span>
+          </div>
+          <div class="gt-val">${eq.j}</div><div class="gt-val">${eq.g}</div>
+          <div class="gt-val">${eq.e}</div><div class="gt-val">${eq.p}</div>
+          <div class="gt-pts">${eq.pts}</div>
+        </div>`;
+    });
+    html += `</div>`;
+  });
+  contenedor.innerHTML = html;
+  if (window.parseTwemoji) window.parseTwemoji(contenedor);
 }
 
 function renderGrupoDetalle(contenedor) {
@@ -220,12 +287,12 @@ function renderGrupoDetalle(contenedor) {
   // Clasificación calculada del grupo
   html += renderClasificacionGrupo(_grupoActivo, cerrado);
 
-  // Predicciones especiales (al final del grupo A, jornada 1)
-  if (_grupoActivo === 'A') {
-    html += renderEspeciales(cerrado);
-  }
+  // Ya no mostramos especiales aquí — tienen su propia sub-pestaña
 
   contenedor.innerHTML = html;
+
+  // Procesar banderas recién renderizadas
+  if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
   // Handler de cambio de marcador
   window._onScoreChange = (partidoId) => {
@@ -431,43 +498,43 @@ function obtenerEquiposGrupo(grupo) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PREDICCIONES ESPECIALES
+//  PREDICCIONES ESPECIALES — sub-pestaña independiente
 // ══════════════════════════════════════════════════════════════
 
-function renderEspeciales(cerrado) {
-  const esp = _predEsp;
+function renderEspecialesTab(contenedor) {
+  const cerrado = !_plazoGrupos;
+  const esp     = _predEsp;
+  const fechaStr = formatFechaLimite(_config.fecha_limite_grupos);
 
   if (cerrado && esp.bloqueado) {
-    return `
-      <div class="notice locked" style="margin-top:14px;">
-        🔒 ${t('specials.lockedSince')} ${formatFechaLimite(_config.fecha_limite_grupos)}
+    contenedor.innerHTML = `
+      <div class="notice locked" style="margin-top:8px;">
+        🔒 ${t('specials.lockedSince')} ${fechaStr}
       </div>
       <div class="special-card locked-card">
-        <div class="special-label">${t('specials.champion')} <span class="special-locked-badge">🔒 ${t('specials.locked')} · ${t('specials.champPts')}</span></div>
+        <div class="special-label">${t('specials.champion')} <span class="special-locked-badge">🔒 ${t('specials.champPts')}</span></div>
         <div class="special-value"><span style="font-size:18px;">${buscarFlag(esp.campeon)}</span> ${esp.campeon || '—'}</div>
       </div>
       <div class="special-card locked-card">
-        <div class="special-label">${t('specials.runnerUp')} <span class="special-locked-badge">🔒 ${t('specials.locked')} · ${t('specials.runnerUpPts')}</span></div>
+        <div class="special-label">${t('specials.runnerUp')} <span class="special-locked-badge">🔒 ${t('specials.runnerUpPts')}</span></div>
         <div class="special-value"><span style="font-size:18px;">${buscarFlag(esp.subcampeon)}</span> ${esp.subcampeon || '—'}</div>
       </div>
       <div class="special-card locked-card">
-        <div class="special-label">${t('specials.mvp')} <span class="special-locked-badge">🔒 ${t('specials.locked')} · ${t('specials.mvpPts')}</span></div>
+        <div class="special-label">${t('specials.mvp')} <span class="special-locked-badge">🔒 ${t('specials.mvpPts')}</span></div>
         <div class="special-value">${esp.mvp || '—'}</div>
       </div>
       <div class="special-card locked-card">
-        <div class="special-label">${t('specials.topScorer')} <span class="special-locked-badge">🔒 ${t('specials.locked')} · ${t('specials.topScorerPts')}</span></div>
+        <div class="special-label">${t('specials.topScorer')} <span class="special-locked-badge">🔒 ${t('specials.topScorerPts')}</span></div>
         <div class="special-value">${esp.goleador || '—'}</div>
-      </div>
-    `;
+      </div>`;
+    return;
   }
 
-  return `
-    <div style="margin-top:18px; padding-top:14px; border-top:1px solid #dde8cc;">
-      <div style="font-size:11px; font-weight:700; color:var(--tm); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px;">
-        ⭐ ${t('specials.title')}
-      </div>
-      ${cerrado ? `<div class="notice locked">🔒 ${t('myPool.closedNotice')}</div>` :
-        `<div class="notice">🔓 ${t('specials.openUntil')} <strong>${formatFechaLimite(_config.fecha_limite_grupos)}</strong></div>`
+  contenedor.innerHTML = `
+    <div style="margin-top:8px;">
+      ${cerrado
+        ? `<div class="notice locked">🔒 ${t('myPool.closedNotice')}</div>`
+        : `<div class="notice">🔓 ${t('specials.openUntil')} <strong>${fechaStr}</strong></div>`
       }
 
       <div class="special-card">
@@ -476,8 +543,7 @@ function renderEspeciales(cerrado) {
           <input class="special-input" type="text" id="esp_campeon"
             value="${esp.campeon || ''}" placeholder="${t('specials.teamPlaceholder')}"
             ${cerrado ? 'disabled' : ''}
-            oninput="window._onEspInput('campeon', this.value)"
-            autocomplete="off">
+            oninput="window._onEspInput('campeon', this.value)" autocomplete="off">
           <div class="autocomplete-list hidden" id="ac_campeon"></div>
         </div>
         <div class="special-hint ${!esp.campeon ? 'missing' : ''}" id="hint_campeon">
@@ -491,8 +557,7 @@ function renderEspeciales(cerrado) {
           <input class="special-input" type="text" id="esp_subcampeon"
             value="${esp.subcampeon || ''}" placeholder="${t('specials.teamPlaceholder')}"
             ${cerrado ? 'disabled' : ''}
-            oninput="window._onEspInput('subcampeon', this.value)"
-            autocomplete="off">
+            oninput="window._onEspInput('subcampeon', this.value)" autocomplete="off">
           <div class="autocomplete-list hidden" id="ac_subcampeon"></div>
         </div>
         <div class="special-hint ${!esp.subcampeon ? 'missing' : ''}" id="hint_subcampeon">
@@ -528,26 +593,74 @@ function renderEspeciales(cerrado) {
         <button class="btn btn-primary btn-full" onclick="window._guardarEspeciales()">
           💾 ${t('specials.saveBtn')}
         </button>
+        <button class="btn btn-danger btn-full" style="margin-top:8px;"
+          onclick="window._borrarPredicciones('especiales')">
+          🗑️ Borrar mis predicciones especiales
+        </button>
       ` : ''}
-    </div>
-  `;
+    </div>`;
 }
+
+// ── Confirmar borrado de predicciones ─────────────────────────
+function confirmarBorrado(tipo) {
+  const labels = {
+    grupos:        'predicciones de grupos',
+    eliminatorias: 'predicciones de eliminatorias',
+    especiales:    'predicciones especiales'
+  };
+  window.appAbrirModal(
+    '🗑️ Borrar ' + labels[tipo],
+    `<p style="font-size:13px;">¿Seguro que quieres borrar todas tus <strong>${labels[tipo]}</strong>? Esta acción no se puede deshacer.</p>`,
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
+     <button class="btn btn-danger" onclick="window._confirmarBorradoFinal('${tipo}')">🗑️ Sí, borrar</button>`
+  );
+}
+
+window._confirmarBorradoFinal = async (tipo) => {
+  try {
+    window.appCerrarModal();
+    window.mostrarToast('🗑️ Borrando...');
+    const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+
+    if (tipo === 'grupos') {
+      const q = query(collection(db, 'predicciones'), where('uid', '==', _app.uid));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      _predGrupos = {};
+    } else if (tipo === 'eliminatorias') {
+      const q = query(collection(db, 'predicciones_elim'), where('uid', '==', _app.uid));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+      _predElim = {};
+    } else if (tipo === 'especiales') {
+      await deleteDoc(doc(db, 'pred_especiales', _app.uid));
+      _predEsp = {};
+    }
+
+    window.mostrarToast('✅ Predicciones borradas');
+    renderTabContent();
+  } catch (e) {
+    console.error('[borrarPredicciones]', e);
+    window.mostrarToast('❌ Error al borrar', 5000);
+  }
+};
 
 // ══════════════════════════════════════════════════════════════
 //  ELIMINATORIAS — BRACKET
 // ══════════════════════════════════════════════════════════════
 
 function renderEliminatorias(contenedor) {
-  const cerrado = !_plazoElim;
+  const cerrado  = !_plazoElim;
+  const fechaStr = formatFechaLimite(_config.fecha_limite_eliminatorias);
 
   contenedor.innerHTML = `
     ${cerrado
       ? `<div class="notice locked">🔒 ${t('knockouts.closedNotice')}</div>`
-      : `<div class="notice">🔓 ${t('knockouts.openUntil')} <strong>${formatFechaLimite(_config.fecha_limite_eliminatorias)}</strong> ${t('myPool.localTime')}</div>`
+      : `<div class="notice">🔓 ${t('knockouts.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`
     }
 
     <div class="bracket-legend">
-      <div class="bl-item"><div class="bl-dot" style="border:1.5px solid var(--gm);"></div>${t('knockouts.ganWinner')} avanzado</div>
+      <div class="bl-item"><div class="bl-dot" style="border:1.5px solid var(--gm);"></div>Editable</div>
       <div class="bl-item"><div class="bl-dot" style="background:var(--gg);border:1px solid var(--gp);"></div>Ganador avanzado</div>
       <div class="bl-item"><div class="bl-dot" style="background:#fffbea;border:1px solid #f5e8b0;"></div>Empate — elige quién pasa</div>
     </div>
@@ -563,12 +676,17 @@ function renderEliminatorias(contenedor) {
       <button class="btn btn-primary btn-full" onclick="window._guardarElim()">
         💾 ${t('myPool.saveBtn')}
       </button>
+      <button class="btn btn-danger btn-full" style="margin-top:8px;"
+        onclick="window._borrarPredicciones('eliminatorias')">
+        🗑️ Borrar mis predicciones de eliminatorias
+      </button>
     ` : ''}
   `;
 
   window._guardarElim = () => guardarPrediccionesElim();
   window._onElimScore = (id) => onElimScoreChange(id);
   window._onElimTB    = (id, ganador) => onElimTiebreak(id, ganador);
+  window._borrarPredicciones = (tipo) => confirmarBorrado(tipo);
 }
 
 // ── SVG conectores del bracket ────────────────────────────────
@@ -684,7 +802,8 @@ function renderBracketMatch(p, left, top, cerrado, fase) {
   const claseL = ganador === (p.equipoLocal || p.placeholderLocal) ? 'win' : '';
   const claseV = ganador === (p.equipoVisitante || p.placeholderVisitante) ? 'win' : '';
 
-  const locked = cerrado || fase !== '1/16' && !p.desbloqueado;
+  // Solo se bloquea si el plazo está cerrado — todas las fases son editables desde el principio
+  const locked = cerrado;
 
   let html = `
     <div class="bracket-match ${locked ? 'lock' : 'edit'} ${fase === 'final' ? 'final' : fase === '3er' ? 'third' : ''}"
@@ -762,36 +881,37 @@ function obtenerPartidos16() {
 }
 
 function obtenerPartidosFase(fase) {
+  // Todos los partidos están desbloqueados desde el principio —
+  // el usuario puede rellenar el bracket completo antes del Mundial
   const fases = {
     '1/8':   [
-      { id:'r16_1', pL:'Gan. 1/16 P1', pV:'Gan. 1/16 P2', fecha:'5 jul',  ciudad:'Chicago',       desbloqueado: false },
-      { id:'r16_2', pL:'Gan. 1/16 P3', pV:'Gan. 1/16 P4', fecha:'6 jul',  ciudad:'Phoenix',        desbloqueado: false },
-      { id:'r16_3', pL:'Gan. 1/16 P5', pV:'Gan. 1/16 P6', fecha:'6 jul',  ciudad:'Denver',         desbloqueado: false },
-      { id:'r16_4', pL:'Gan. 1/16 P7', pV:'Gan. 1/16 P8', fecha:'7 jul',  ciudad:'Kansas City',    desbloqueado: false },
+      { id:'r16_1', pL:'Gan. 1/16 P1', pV:'Gan. 1/16 P2', fecha:'5 jul',  ciudad:'Chicago'      },
+      { id:'r16_2', pL:'Gan. 1/16 P3', pV:'Gan. 1/16 P4', fecha:'6 jul',  ciudad:'Phoenix'       },
+      { id:'r16_3', pL:'Gan. 1/16 P5', pV:'Gan. 1/16 P6', fecha:'6 jul',  ciudad:'Denver'        },
+      { id:'r16_4', pL:'Gan. 1/16 P7', pV:'Gan. 1/16 P8', fecha:'7 jul',  ciudad:'Kansas City'   },
     ],
     '1/4':   [
-      { id:'qf_1',  pL:'Gan. 1/8 Q1',  pV:'Gan. 1/8 Q2',  fecha:'9 jul',  ciudad:'Nueva York',     desbloqueado: false },
-      { id:'qf_2',  pL:'Gan. 1/8 Q3',  pV:'Gan. 1/8 Q4',  fecha:'10 jul', ciudad:'Miami',          desbloqueado: false },
+      { id:'qf_1',  pL:'Gan. 1/8 Q1',  pV:'Gan. 1/8 Q2',  fecha:'9 jul',  ciudad:'Nueva York'   },
+      { id:'qf_2',  pL:'Gan. 1/8 Q3',  pV:'Gan. 1/8 Q4',  fecha:'10 jul', ciudad:'Miami'         },
     ],
     'semi':  [
-      { id:'sf_1',  pL:'Gan. Cuar. 1', pV:'Gan. Cuar. 2', fecha:'14 jul', ciudad:'Los Ángeles',    desbloqueado: false },
+      { id:'sf_1',  pL:'Gan. Cuar. 1', pV:'Gan. Cuar. 2', fecha:'14 jul', ciudad:'Los Ángeles'   },
     ],
     '3er':   [
-      { id:'tp_1',  pL:'Perd. Semi 1', pV:'Perd. Semi 2', fecha:'18 jul', ciudad:'Miami',          desbloqueado: false },
+      { id:'tp_1',  pL:'Perd. Semi 1', pV:'Perd. Semi 2', fecha:'18 jul', ciudad:'Miami'          },
     ],
     'final': [
-      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2', fecha:'19 jul', ciudad:'Nueva York',     desbloqueado: false },
+      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2', fecha:'19 jul', ciudad:'Nueva York'    },
     ]
   };
 
   return (fases[fase] || []).map(c => {
     const datoAPI = _bracket[c.id] || {};
-    // Propagar ganadores de predicciones del usuario
-    const pred = _predElim[c.id] || {};
     return {
       ...c,
-      equipoLocal:     datoAPI.equipoLocal     || propagarGanador(c.id, 'local')  || null,
-      equipoVisitante: datoAPI.equipoVisitante || propagarGanador(c.id, 'vis')    || null,
+      desbloqueado:    true,  // siempre editable
+      equipoLocal:     datoAPI.equipoLocal     || propagarGanador(c.id, 'local') || null,
+      equipoVisitante: datoAPI.equipoVisitante || propagarGanador(c.id, 'vis')   || null,
       flagLocal:       datoAPI.flagLocal       || '',
       flagVisitante:   datoAPI.flagVisitante   || '',
     };

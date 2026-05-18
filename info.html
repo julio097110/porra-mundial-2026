@@ -309,5 +309,16 @@
     initInfo();
   </script>
 
+  <!-- Twemoji: renderiza banderas correctamente en Windows -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      twemoji.parse(document.body, {
+        folder: 'svg', ext: '.svg',
+        base: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/'
+      });
+    });
+  </script>
+
 </body>
 </html>
