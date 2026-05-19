@@ -217,37 +217,24 @@
       }
     };
 
-    // Busca el email en Firestore a partir de username, nombre visible o email
+    // Busca el email en Firestore a partir de username, nombre visible o email.
+    // Usa la colección 'login_lookup' que es de lectura pública (no requiere auth).
+    // El admin debe poblar esta colección al crear cada usuario — lo hace auth.js automáticamente.
     async function buscarEmailPorUsuario(valor) {
       try {
         const { collection, query, where, getDocs } = await import(
           'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
         );
+        const db2 = getFirestore();
         const valorLower = valor.toLowerCase().trim();
 
-        // 1. Buscar por username
-        const qUser = query(
-          collection(db, 'usuarios'),
-          where('username', '==', valorLower)
+        // Buscar en login_lookup por username o nombre_visible_lower
+        const q = query(
+          collection(db2, 'login_lookup'),
+          where('keys', 'array-contains', valorLower)
         );
-        const snapUser = await getDocs(qUser);
-        if (!snapUser.empty) return snapUser.docs[0].data().email;
-
-        // 2. Buscar por nombre visible (nombre_visible_lower)
-        const qNombre = query(
-          collection(db, 'usuarios'),
-          where('nombre_visible_lower', '==', valorLower)
-        );
-        const snapNombre = await getDocs(qNombre);
-        if (!snapNombre.empty) return snapNombre.docs[0].data().email;
-
-        // 3. Buscar por email (por si alguien lo escribe sin @)
-        const qEmail = query(
-          collection(db, 'usuarios'),
-          where('email', '==', valor.trim())
-        );
-        const snapEmail = await getDocs(qEmail);
-        if (!snapEmail.empty) return snapEmail.docs[0].data().email;
+        const snap = await getDocs(q);
+        if (!snap.empty) return snap.docs[0].data().email;
 
         return null;
       } catch (e) {
@@ -274,7 +261,7 @@
   </script>
 
   <!-- Twemoji: renderiza banderas correctamente en Windows -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" integrity="sha512-MVlikhp6RUAQU5GmqUj1MHGkf0PCBV9PFHZWWG1IY0HL2AhH0XFp7b13TbAWVjYOCDGJm/cCEE+hEnRU7xag==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <script>
     // Procesa los emojis del DOM completo cuando la página carga
     document.addEventListener('DOMContentLoaded', () => {
