@@ -448,7 +448,25 @@ async function actualizarEquiposDesdeAPI() {
 //  API football-data.org
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+//  API football-data.org
+//  Solo funciona desde localhost — en producción (GitHub Pages)
+//  la API bloquea las peticiones por CORS. El admin debe
+//  actualizar los resultados manualmente desde local.
+// ══════════════════════════════════════════════════════════════
+
 async function cargarDatosAPI() {
+  // Detectar si estamos en producción (GitHub Pages)
+  const esProduccion = window.location.hostname !== 'localhost' &&
+                       window.location.hostname !== '127.0.0.1';
+
+  if (esProduccion) {
+    // En producción no llamamos a la API para evitar el error CORS
+    // Los resultados se confirman manualmente por el admin
+    console.info('[API] Entorno de producción — API deshabilitada por CORS');
+    return;
+  }
+
   try {
     // Obtener partidos del Mundial 2026 fase de grupos
     const res = await fetch(
