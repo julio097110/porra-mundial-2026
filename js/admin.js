@@ -179,6 +179,21 @@ function renderResumen() {
           💳 ${t('admin.payments.title')}
         </button>
       </div>
+
+      <!-- Recalcular puntos -->
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid #f0f5e8;">
+        <div style="font-size:13px; font-weight:600; color:var(--gd); margin-bottom:4px;">
+          🔄 Recalcular puntos
+        </div>
+        <div style="font-size:12px; color:var(--tm); margin-bottom:10px;">
+          Borra todos los puntos actuales y los recalcula desde cero usando
+          los resultados confirmados y las predicciones guardadas de cada jugador.
+          Útil si hay datos incorrectos por pruebas anteriores.
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="window._adminRecalcularPuntos()">
+          🔄 Recalcular todos los puntos
+        </button>
+      </div>
     </div>`;
 }
 
@@ -884,18 +899,121 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar corrección ortográfica especiales
-  window._adminGuardarEsp = async (uid) => {
+  // ── Recalcular todos los puntos desde cero ───────────────────
+  window._adminRecalcularPuntos = () => {
+    window.appAbrirModal(
+      '🔄 Recalcular todos los puntos',
+      `<p style="font-size:13px;">Esto borrará <strong>todos</strong> los puntos actuales y los recalculará desde cero usando los resultados confirmados y las predicciones guardadas.</p>
+       <p style="font-size:12px; color:var(--r); margin-top:8px;">⚠️ Esta acción puede tardar unos segundos si hay muchos jugadores.</p>`,
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
+       <button class="btn btn-danger" onclick="window._adminEjecutarRecalculo()">
+         🔄 Sí, recalcular
+       </button>`
+    );
+  };
+
+  window._adminEjecutarRecalculo = async () => {
     try {
-      const mvp      = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
-      const goleador = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
-      await updateDoc(doc(db, 'pred_especiales', uid), { mvp, goleador });
-      window.mostrarToast('✅ Corregido correctamente');
+      window.appCerrarModal();
+      window.mostrarToast('🔄 Recalculando puntos...');
+
+      const { deleteDoc } = await import(
+        'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      );
+
+      // 1. Borrar TODOS los documentos de puntos existentes
+      const puntosSnap = await getDocs(collection(db, 'puntos'));
+      await Promise.all(puntosSnap.docs.map(d => deleteDoc(d.ref)));
+
+      // 2. Borrar todos los totales de clasificación
+      const clasifSnap = await getDocs(collection(db, 'clasificacion'));
+      await Promise.all(clasifSnap.docs.map(d => deleteDoc(d.ref)));
+
+      // 3. Cargar todos los resultados confirmados
+      const resSnap = await getDocs(collection(db, 'resultados'));
+      const resultados = {};
+      resSnap.forEach(d => { resultados[d.id] = d.data(); });
+
+      // 4. Para cada resultado confirmado, recalcular puntos de todos los jugadores
+      const resultadosConfirmados = Object.entries(resultados)
+        .filter(([, r]) => r.confirmado);
+
+      for (const [partidoId, res] of resultadosConfirmados) {
+        // Obtener predicciones de este partido
+        const predQ    = query(
+          collection(db, 'predicciones'),
+          where('partido_id', '==', partidoId)
+        );
+        const predSnap = await getDocs(predQ);
+
+        const batch = [];
+        predSnap.forEach(d => {
+          const pred   = d.data();
+          const uid    = pred.uid;
+          const puntos = calcularPuntosPartido(
+            pred,
+            res.goles_local,
+            res.goles_visitante
+          );
+
+          batch.push(
+            setDoc(
+              doc(db, 'puntos', `${uid}_${partidoId}`),
+              {
+                uid,
+                partido_id: partidoId,
+                puntos,
+                tipo:      'grupo',
+                timestamp: serverTimestamp()
+              },
+              { merge: true }
+            )
+          );
+        });
+        await Promise.all(batch);
+      }
+
+      // 5. Recalcular totales de clasificación
+      const todosPuntosSnap = await getDocs(collection(db, 'puntos'));
+      const totales = {};
+      todosPuntosSnap.forEach(d => {
+        const { uid, puntos } = d.data();
+        if (!uid) return;
+        totales[uid] = (totales[uid] || 0) + (puntos || 0);
+      });
+
+      await Promise.all(
+        Object.entries(totales).map(([uid, total]) =>
+          setDoc(
+            doc(db, 'clasificacion', uid),
+            { uid, total, actualizado: serverTimestamp() },
+            { merge: true }
+          )
+        )
+      );
+
+      window.mostrarToast('✅ Puntos recalculados correctamente', 4000);
+
     } catch (e) {
-      console.error('[guardarEsp]', e);
-      window.mostrarToast('❌ ' + t('common.error'), 5000);
+      console.error('[recalcularPuntos]', e);
+      window.mostrarToast('❌ Error al recalcular. Inténtalo de nuevo.', 5000);
     }
   };
+
+  // Helper local para calcular puntos de un partido
+  function calcularPuntosPartido(pred, golesLocalReal, golesVisitanteReal) {
+    const pl = parseInt(pred.local);
+    const pv = parseInt(pred.visitante);
+    if (isNaN(pl) || isNaN(pv)) return 0;
+    if (pl === golesLocalReal && pv === golesVisitanteReal) return 3;
+    const signoPred = Math.sign(pl - pv);
+    const signoReal = Math.sign(golesLocalReal - golesVisitanteReal);
+    if (signoPred === signoReal) return 1;
+    return 0;
+  }
+
+  // Guardar corrección ortográfica especiales
+  window._adminGuardarEsp = async (uid) => {
 
   // Ver predicciones de un jugador — abre un modal con el resumen
   window._adminVerPredicciones = async (uid, nombre) => {
