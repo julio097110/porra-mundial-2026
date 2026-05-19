@@ -79,12 +79,13 @@ async function cargarRanking() {
       puntos[d.id] = d.data().total || 0;
     });
 
-    // Combinar y ordenar
+    // Combinar y ordenar — incluimos el campo pagado para el reparto de premios
     _ranking = Object.entries(usuarios)
       .map(([uid, u]) => ({
         uid,
         nombre:  u.nombre_visible || u.username || '—',
         total:   puntos[uid] || 0,
+        pagado:  u.pagado || false,
         esYo:    uid === _app.uid
       }))
       .sort((a, b) => {
@@ -98,12 +99,44 @@ async function cargarRanking() {
   }
 }
 
+// ── Calcula a qué jugador corresponde cada premio (solo pagadores, con cascada) ──
+// Devuelve un Map: uid → { puesto: 1|2|3, importe: number }
+function calcularPremios(bote) {
+  if (!bote) return new Map();
+
+  const importes = [
+    Math.round(bote * 0.65),
+    Math.round(bote * 0.25),
+    Math.round(bote * 0.10)
+  ];
+
+  // Recorrer el ranking en orden y asignar premios solo a pagadores
+  const premios = new Map();
+  let puestosPremio = 0;
+
+  for (const jugador of _ranking) {
+    if (puestosPremio >= 3) break;
+    if (jugador.pagado) {
+      premios.set(jugador.uid, {
+        puesto:  puestosPremio + 1,
+        importe: importes[puestosPremio]
+      });
+      puestosPremio++;
+    }
+  }
+
+  return premios;
+}
+
 // ── Render principal ──────────────────────────────────────────
 function renderClasificacion(contenedor) {
-  const bote   = _config.bote_total || 0;
-  const p1     = bote ? Math.round(bote * 0.65) : null;
-  const p2     = bote ? Math.round(bote * 0.25) : null;
-  const p3     = bote ? Math.round(bote * 0.10) : null;
+  const bote    = _config.bote_total || 0;
+  const premios = calcularPremios(bote);
+
+  // Importes para mostrar en la tarjeta resumen
+  const p1 = bote ? Math.round(bote * 0.65) : null;
+  const p2 = bote ? Math.round(bote * 0.25) : null;
+  const p3 = bote ? Math.round(bote * 0.10) : null;
 
   // Encontrar posición del usuario actual
   const miPos = _ranking.findIndex(r => r.uid === _app.uid) + 1;
@@ -126,6 +159,8 @@ function renderClasificacion(contenedor) {
 
   // Tarjeta bote total (si existe)
   if (bote > 0) {
+    // Contar cuántos pagadores hay para mostrar el aviso si hay menos de 3
+    const numPagadores = _ranking.filter(r => r.pagado).length;
     html += `
       <div style="background:var(--goldp); border:1px solid #f0d88a; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
         <div style="font-size:12px; color:#856404; font-weight:500; margin-bottom:4px;">
@@ -145,13 +180,20 @@ function renderClasificacion(contenedor) {
             🥉 ${p3.toLocaleString()} NOK
           </span>
         </div>
+        ${numPagadores < 3 ? `
+          <div style="font-size:10px; color:#856404; margin-top:8px; opacity:.8;">
+            ⚠️ Solo ${numPagadores} jugador${numPagadores === 1 ? '' : 'es'} ha${numPagadores === 1 ? '' : 'n'} pagado — el premio se asigna en cascada a los primeros pagadores de la clasificación
+          </div>` : `
+          <div style="font-size:10px; color:#856404; margin-top:8px; opacity:.8;">
+            El premio se reparte entre los 3 primeros clasificados que hayan pagado
+          </div>`}
       </div>`;
   }
 
   // Si el usuario no está en la página visible, mostrar su posición arriba
   if (!usuarioEnPagina && miPos > 0) {
     const yo = _ranking[miPos - 1];
-    html += renderFilaStandings(yo, miPos, p1, p2, p3, true);
+    html += renderFilaStandings(yo, miPos, premios, bote, true);
     html += `<div style="text-align:center; font-size:11px; color:var(--tm); margin:4px 0 10px;">· · · tu posición · · ·</div>`;
   }
 
@@ -168,7 +210,7 @@ function renderClasificacion(contenedor) {
 
   pagina.forEach((jugador, i) => {
     const pos = inicio + i + 1;
-    html += renderFilaStandings(jugador, pos, p1, p2, p3, false, bote > 0);
+    html += renderFilaStandings(jugador, pos, premios, bote, false);
   });
 
   html += `</div>`;
@@ -195,6 +237,7 @@ function renderClasificacion(contenedor) {
 
   html += `</div>`;
   contenedor.innerHTML = html;
+  if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
   // Handler paginación
   window._clPagina = (pag) => {
@@ -206,25 +249,33 @@ function renderClasificacion(contenedor) {
 }
 
 // ── Fila de la tabla de standings ────────────────────────────
-function renderFilaStandings(jugador, pos, p1, p2, p3, destacado = false, mostrarPremio = false) {
-  const lider = _ranking[0]?.total || 0;
-  const diff  = jugador.total - lider;
-  const diffStr = pos === 1 ? '—' : diff.toString();
+// premios: Map { uid → { puesto, importe } } generado por calcularPremios()
+// bote: número total (0 si no hay bote)
+function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
+  const lider    = _ranking[0]?.total || 0;
+  const diff     = jugador.total - lider;
+  const diffStr  = pos === 1 ? '—' : diff.toString();
+  const rowClass = jugador.esYo ? 'me' : '';
 
-  let posIcon = pos;
   let posClass = '';
-  let rowClass = jugador.esYo ? 'me' : '';
+  if (pos === 1)      posClass = 'gold';
+  else if (pos === 2) posClass = 'silver';
+  else if (pos === 3) posClass = 'bronze';
 
-  if (pos === 1) { posIcon = '1'; posClass = 'gold'; }
-  else if (pos === 2) { posIcon = '2'; posClass = 'silver'; }
-  else if (pos === 3) { posIcon = '3'; posClass = 'bronze'; }
-
+  // Premio: solo si hay bote y el jugador está en el Map de premios
   let premioHtml = '';
-  if (mostrarPremio) {
-    if (pos === 1 && p1) premioHtml = `<div class="s-prize prize-1">${p1.toLocaleString()} NOK</div>`;
-    else if (pos === 2 && p2) premioHtml = `<div class="s-prize prize-2">${p2.toLocaleString()} NOK</div>`;
-    else if (pos === 3 && p3) premioHtml = `<div class="s-prize prize-3">${p3.toLocaleString()} NOK</div>`;
-    else premioHtml = `<div class="s-prize prize-none">—</div>`;
+  if (bote > 0) {
+    const premio = premios.get(jugador.uid);
+    if (premio) {
+      const clases = ['prize-1', 'prize-2', 'prize-3'];
+      premioHtml = `<div class="s-prize ${clases[premio.puesto - 1]}">${premio.importe.toLocaleString()} NOK</div>`;
+    } else if (!jugador.pagado) {
+      // No ha pagado — se indica claramente
+      premioHtml = `<div class="s-prize prize-none" title="No ha pagado">sin pago</div>`;
+    } else {
+      // Ha pagado pero no está en top 3 pagadores
+      premioHtml = `<div class="s-prize prize-none">—</div>`;
+    }
   }
 
   const medallaEmoji = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '';
