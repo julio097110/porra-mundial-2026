@@ -1014,6 +1014,16 @@ function registrarHandlers() {
 
   // Guardar corrección ortográfica especiales
   window._adminGuardarEsp = async (uid) => {
+    try {
+      const mvp      = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
+      const goleador = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
+      await updateDoc(doc(db, 'pred_especiales', uid), { mvp, goleador });
+      window.mostrarToast('✅ Corregido correctamente');
+    } catch (e) {
+      console.error('[guardarEsp]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
 
   // Ver predicciones de un jugador — abre un modal con el resumen
   window._adminVerPredicciones = async (uid, nombre) => {
