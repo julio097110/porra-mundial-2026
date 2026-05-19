@@ -58,7 +58,7 @@
                 id="inputUser"
                 autocomplete="username"
                 data-i18n-placeholder="login.userPlaceholder"
-                placeholder="Tu nombre de usuario"
+                placeholder="Usuario, nombre o email"
               >
             </div>
           </div>
@@ -217,20 +217,38 @@
       }
     };
 
-    // Busca el email en Firestore a partir del nombre de usuario
-    async function buscarEmailPorUsuario(nombreUsuario) {
+    // Busca el email en Firestore a partir de username, nombre visible o email
+    async function buscarEmailPorUsuario(valor) {
       try {
         const { collection, query, where, getDocs } = await import(
           'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
         );
-        const q = query(
+        const valorLower = valor.toLowerCase().trim();
+
+        // 1. Buscar por username
+        const qUser = query(
           collection(db, 'usuarios'),
-          where('username', '==', nombreUsuario.toLowerCase())
+          where('username', '==', valorLower)
         );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          return snap.docs[0].data().email;
-        }
+        const snapUser = await getDocs(qUser);
+        if (!snapUser.empty) return snapUser.docs[0].data().email;
+
+        // 2. Buscar por nombre visible (nombre_visible_lower)
+        const qNombre = query(
+          collection(db, 'usuarios'),
+          where('nombre_visible_lower', '==', valorLower)
+        );
+        const snapNombre = await getDocs(qNombre);
+        if (!snapNombre.empty) return snapNombre.docs[0].data().email;
+
+        // 3. Buscar por email (por si alguien lo escribe sin @)
+        const qEmail = query(
+          collection(db, 'usuarios'),
+          where('email', '==', valor.trim())
+        );
+        const snapEmail = await getDocs(qEmail);
+        if (!snapEmail.empty) return snapEmail.docs[0].data().email;
+
         return null;
       } catch (e) {
         console.error('[buscarEmailPorUsuario]', e);
