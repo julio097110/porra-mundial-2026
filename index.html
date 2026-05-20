@@ -58,7 +58,7 @@
                 id="inputUser"
                 autocomplete="username"
                 data-i18n-placeholder="login.userPlaceholder"
-                placeholder="Usuario, nombre o email"
+                placeholder="Tu nombre de usuario"
               >
             </div>
           </div>
@@ -217,25 +217,20 @@
       }
     };
 
-    // Busca el email en Firestore a partir de username, nombre visible o email.
-    // Usa la colección 'login_lookup' que es de lectura pública (no requiere auth).
-    // El admin debe poblar esta colección al crear cada usuario — lo hace auth.js automáticamente.
-    async function buscarEmailPorUsuario(valor) {
+    // Busca el email en Firestore a partir del nombre de usuario
+    async function buscarEmailPorUsuario(nombreUsuario) {
       try {
         const { collection, query, where, getDocs } = await import(
           'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
         );
-        const db2 = getFirestore();
-        const valorLower = valor.toLowerCase().trim();
-
-        // Buscar en login_lookup por username o nombre_visible_lower
         const q = query(
-          collection(db2, 'login_lookup'),
-          where('keys', 'array-contains', valorLower)
+          collection(db, 'usuarios'),
+          where('username', '==', nombreUsuario.toLowerCase())
         );
         const snap = await getDocs(q);
-        if (!snap.empty) return snap.docs[0].data().email;
-
+        if (!snap.empty) {
+          return snap.docs[0].data().email;
+        }
         return null;
       } catch (e) {
         console.error('[buscarEmailPorUsuario]', e);
@@ -258,18 +253,6 @@
       if (e.key === 'Enter') window.handleLogin();
     });
 
-  </script>
-
-  <!-- Twemoji: renderiza banderas correctamente en Windows -->
-  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script>
-    // Procesa los emojis del DOM completo cuando la página carga
-    document.addEventListener('DOMContentLoaded', () => {
-      twemoji.parse(document.body, {
-        folder: 'svg', ext: '.svg',
-        base: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/'
-      });
-    });
   </script>
 
 </body>
