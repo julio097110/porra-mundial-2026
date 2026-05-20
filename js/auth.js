@@ -96,17 +96,6 @@ export async function crearUsuario({
     creado_en:            serverTimestamp()
   });
 
-  // 5. Crear entrada en login_lookup (colección pública para búsqueda sin auth)
-  // El campo 'keys' contiene todos los valores con los que el usuario puede hacer login
-  await setDoc(doc(db, 'login_lookup', newUid), {
-    email,
-    keys: [
-      username.trim().toLowerCase(),
-      nombre_visible.trim().toLowerCase(),
-      email.toLowerCase()
-    ]
-  });
-
   return newUid;
 }
 
