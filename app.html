@@ -382,31 +382,9 @@
     // Exponer t() globalmente para los módulos
     window._t = t;
 
-  </script>
+    // parseTwemoji — deshabilitado (Twemoji eliminado)
+    window.parseTwemoji = () => {};
 
-  <!-- Twemoji: renderiza banderas correctamente en Windows -->
-  <script src="https://unpkg.com/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
-  <script>
-    // Configuración base de Twemoji — usamos SVGs de cdnjs para máxima calidad
-    const TWEMOJI_OPTIONS = {
-      folder: 'svg',
-      ext: '.svg',
-      base: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/'
-    };
-
-    // Helper global que cualquier módulo JS puede llamar después de renderizar HTML.
-    // Si no se pasa ningún elemento, procesa todo el body.
-    // Uso desde módulos: window.parseTwemoji(document.getElementById('miPorraContent'))
-    window.parseTwemoji = (element = document.body) => {
-      if (window.twemoji) {
-        twemoji.parse(element, TWEMOJI_OPTIONS);
-      }
-    };
-
-    // Procesar el body inicial (topbar, nombre de usuario, etc.)
-    document.addEventListener('DOMContentLoaded', () => {
-      window.parseTwemoji();
-    });
   </script>
 
 </body>
