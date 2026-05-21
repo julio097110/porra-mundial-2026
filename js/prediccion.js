@@ -666,7 +666,7 @@ function renderEliminatorias(contenedor) {
     </div>
 
     <div class="bracket-scroll">
-      <div class="bracket-canvas" id="bracketCanvas" style="position:relative; min-width:920px; height:940px;">
+      <div class="bracket-canvas" id="bracketCanvas" style="position:relative; min-width:1100px; height:1380px;">
         ${renderBracketSVG(cerrado)}
         ${renderBracketPartidos(cerrado)}
       </div>
@@ -693,27 +693,42 @@ function renderEliminatorias(contenedor) {
 function renderBracketSVG(cerrado) {
   return `
     <svg style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;">
-      <!-- 1/16 → 1/8 -->
-      <path class="conn-line" d="M130,56 H148 V98 H162"/>
-      <path class="conn-line" d="M130,140 H148 V98 H162"/>
-      <path class="conn-line" d="M130,224 H148 V266 H162"/>
-      <path class="conn-line" d="M130,308 H148 V266 H162"/>
-      <path class="conn-line" d="M130,392 H148 V434 H162"/>
-      <path class="conn-line" d="M130,476 H148 V434 H162"/>
-      <path class="conn-line" d="M130,560 H148 V602 H162"/>
-      <path class="conn-line" d="M130,644 H148 V602 H162"/>
-      <!-- 1/8 → 1/4 -->
-      <path class="conn-line" d="M292,98  H310 V182 H324"/>
-      <path class="conn-line" d="M292,266 H310 V182 H324"/>
-      <path class="conn-line" d="M292,434 H310 V518 H324"/>
-      <path class="conn-line" d="M292,602 H310 V518 H324"/>
-      <!-- 1/4 → Semis -->
-      <path class="conn-line" d="M454,182 H472 V350 H486"/>
-      <path class="conn-line" d="M454,518 H472 V350 H486"/>
+      <!-- 1/16 → 1/8: cada par de partidos se une en el centro del 1/8 -->
+      <path class="conn-line" d="M140,56  H146 V106 H150"/>
+      <path class="conn-line" d="M140,140 H146 V106 H150"/>
+      <path class="conn-line" d="M140,224 H146 V274 H150"/>
+      <path class="conn-line" d="M140,308 H146 V274 H150"/>
+      <path class="conn-line" d="M140,392 H146 V442 H150"/>
+      <path class="conn-line" d="M140,476 H146 V442 H150"/>
+      <path class="conn-line" d="M140,560 H146 V610 H150"/>
+      <path class="conn-line" d="M140,644 H146 V610 H150"/>
+      <path class="conn-line" d="M140,728 H146 V778 H150"/>
+      <path class="conn-line" d="M140,812 H146 V778 H150"/>
+      <path class="conn-line" d="M140,896 H146 V946 H150"/>
+      <path class="conn-line" d="M140,980 H146 V946 H150"/>
+      <path class="conn-line" d="M140,1064 H146 V1114 H150"/>
+      <path class="conn-line" d="M140,1148 H146 V1114 H150"/>
+      <path class="conn-line" d="M140,1232 H146 V1282 H150"/>
+      <path class="conn-line" d="M140,1316 H146 V1282 H150"/>
+      <!-- 1/8 → Cuartos -->
+      <path class="conn-line" d="M290,106  H296 V190 H300"/>
+      <path class="conn-line" d="M290,274  H296 V190 H300"/>
+      <path class="conn-line" d="M290,442  H296 V526 H300"/>
+      <path class="conn-line" d="M290,610  H296 V526 H300"/>
+      <path class="conn-line" d="M290,778  H296 V862 H300"/>
+      <path class="conn-line" d="M290,946  H296 V862 H300"/>
+      <path class="conn-line" d="M290,1114 H296 V1198 H300"/>
+      <path class="conn-line" d="M290,1282 H296 V1198 H300"/>
+      <!-- Cuartos → Semis -->
+      <path class="conn-line" d="M440,190  H446 V358 H450"/>
+      <path class="conn-line" d="M440,526  H446 V358 H450"/>
+      <path class="conn-line" d="M440,862  H446 V1030 H450"/>
+      <path class="conn-line" d="M440,1198 H446 V1030 H450"/>
       <!-- Semis → Final -->
-      <path class="conn-line" d="M616,350 H648"/>
-      <!-- Semis → 3er puesto (perdedores bajan) -->
-      <path class="conn-line" d="M551,362 V800 H648"/>
+      <path class="conn-line" d="M590,358  H596 V694 H600"/>
+      <path class="conn-line" d="M590,1030 H596 V694 H600"/>
+      <!-- Semis → 3er puesto (perdedores) -->
+      <path class="conn-line" d="M520,370 V1320 H600"/>
     </svg>
   `;
 }
@@ -723,56 +738,65 @@ function renderBracketPartidos(cerrado) {
   let html = '';
 
   // Etiquetas de columnas
+  // Columnas: 1/16@0, 1/8@150, Cuartos@300, Semis@450, Final@600, ancho tarjeta=140
   const cols = [
-    { label: '1/16 de final', left: 0 },
-    { label: '1/8 de final',  left: 162 },
-    { label: 'Cuartos',       left: 324 },
-    { label: 'Semifinales',   left: 486 },
-    { label: '🏆 Final',      left: 648 }
+    { label: '1/16 de final', left: 0   },
+    { label: '1/8 de final',  left: 150 },
+    { label: 'Cuartos',       left: 300 },
+    { label: 'Semifinales',   left: 450 },
+    { label: '🏆 Final',      left: 600 }
   ];
   cols.forEach(c => {
-    html += `<div class="bracket-col-label" style="left:${c.left}px; top:6px; width:130px;">${c.label}</div>`;
+    html += `<div class="bracket-col-label" style="left:${c.left}px; top:6px; width:140px;">${c.label}</div>`;
   });
-  html += `<div class="bracket-col-label" style="left:648px; top:768px; width:140px; color:var(--tm);">🥉 3er y 4º puesto</div>`;
+  html += `<div class="bracket-col-label" style="left:600px; top:1260px; width:140px; color:var(--tm);">🥉 3er y 4º puesto</div>`;
 
-  // 1/16 (8 partidos)
-  const tops16 = [24, 108, 192, 276, 360, 444, 528, 612];
+  // 1/16 (16 partidos, separación de 84px, altura tarjeta ~80px → cada 84px)
+  // tops: 24, 108, 192, 276, 360, 444, 528, 612, 696, 780, 864, 948, 1032, 1116, 1200, 1284  — pero acotamos a 1/16 alto=80 → separación 84
+  const tops16 = [24, 108, 192, 276, 360, 444, 528, 612, 696, 780, 864, 948, 1032, 1116, 1200, 1284];
   const partidos16 = obtenerPartidos16();
   partidos16.forEach((p, i) => {
     html += renderBracketMatch(p, 0, tops16[i], cerrado, '1/16');
   });
 
-  // 1/8 (4 partidos)
-  const tops8 = [70, 238, 406, 574];
+  // 1/8 (8 partidos): centrados entre pares de 1/16
+  // par (0,1)→top=(24+108)/2+0=66, (2,3)→234, (4,5)→402, (6,7)→570, (8,9)→738, (10,11)→906, (12,13)→1074, (14,15)→1242
+  const tops8 = [66, 234, 402, 570, 738, 906, 1074, 1242];
   const partidos8 = obtenerPartidosFase('1/8');
   partidos8.forEach((p, i) => {
-    html += renderBracketMatch(p, 162, tops8[i], cerrado, '1/8');
+    html += renderBracketMatch(p, 150, tops8[i], cerrado, '1/8');
   });
 
-  // Cuartos (2 partidos)
-  const topsCuartos = [154, 490];
+  // Cuartos (4 partidos): centrados entre pares de 1/8
+  // (66+234)/2=150, (402+570)/2=486, (738+906)/2=822, (1074+1242)/2=1158
+  const topsCuartos = [150, 486, 822, 1158];
   const partidosCuartos = obtenerPartidosFase('1/4');
   partidosCuartos.forEach((p, i) => {
-    html += renderBracketMatch(p, 324, topsCuartos[i], cerrado, '1/4');
+    html += renderBracketMatch(p, 300, topsCuartos[i], cerrado, '1/4');
   });
 
-  // Semis (1 partido visible, el otro del otro lado)
+  // Semis (2 partidos): centrados entre pares de cuartos
+  // (150+486)/2=318, (822+1158)/2=990
+  const topsSemis = [318, 990];
   const partidosSemis = obtenerPartidosFase('semi');
-  if (partidosSemis[0]) html += renderBracketMatch(partidosSemis[0], 486, 322, cerrado, 'semi');
+  partidosSemis.forEach((p, i) => {
+    html += renderBracketMatch(p, 450, topsSemis[i], cerrado, 'semi');
+  });
 
-  // Final
+  // Final: centrada entre las dos semis
+  // (318+990)/2=654
+  const topFinal = 654;
   const final = obtenerPartidosFase('final')[0];
   if (final) {
-    html += renderBracketMatch({ ...final, esFinal: true }, 648, 300, cerrado, 'final');
-    // Badge campeón
+    html += renderBracketMatch({ ...final, esFinal: true }, 600, topFinal, cerrado, 'final');
     const pred = _predElim[final?.id || 'final'];
     const campeon = pred?.ganador || '—';
     const coincide = campeon === _predEsp.campeon;
     html += `
-      <div class="champ-badge" style="position:absolute; left:648px; top:${300 + 80}px; width:140px;">
+      <div class="champ-badge" style="position:absolute; left:600px; top:${topFinal + 80}px; width:140px;">
         🥇 ${campeon}
       </div>
-      <div class="champ-sub" style="position:absolute; left:648px; top:${300 + 98}px; width:140px; font-size:8px; color:#aaa; text-align:center;">
+      <div class="champ-sub" style="position:absolute; left:600px; top:${topFinal + 98}px; width:140px; font-size:8px; color:#aaa; text-align:center;">
         ${coincide && campeon !== '—'
           ? '✓ Coincide con tu predicción especial · +6 pts'
           : campeon !== '—' ? 'Diferente a tu predicción especial' : ''}
@@ -780,9 +804,9 @@ function renderBracketPartidos(cerrado) {
     `;
   }
 
-  // 3er y 4º puesto
+  // 3er y 4º puesto: debajo de la final
   const tercero = obtenerPartidosFase('3er')[0];
-  if (tercero) html += renderBracketMatch(tercero, 648, 786, cerrado, '3er');
+  if (tercero) html += renderBracketMatch(tercero, 600, 1280, cerrado, '3er');
 
   return html;
 }
@@ -853,14 +877,22 @@ function obtenerPartidos16() {
   // Los cruces de 1/16 vienen de la API (guardados en _bracket)
   // Si no hay datos de la API, usamos placeholders basados en la clasificación
   const cruces = [
-    { id:'r32_1',  pL:'2º Grupo A',   pV:'2º Grupo B',   fecha:'28 jun', ciudad:'Los Ángeles' },
-    { id:'r32_2',  pL:'1º Grupo C',   pV:'2º Grupo F',   fecha:'29 jun', ciudad:'Houston' },
-    { id:'r32_3',  pL:'1º Grupo E',   pV:'Mej. 3º A/B/C/D/F', fecha:'29 jun', ciudad:'Foxborough' },
-    { id:'r32_4',  pL:'1º Grupo F',   pV:'2º Grupo C',   fecha:'29 jun', ciudad:'Monterrey' },
-    { id:'r32_5',  pL:'2º Grupo E',   pV:'2º Grupo I',   fecha:'30 jun', ciudad:'Arlington' },
-    { id:'r32_6',  pL:'1º Grupo I',   pV:'Mej. 3º C/D/F/G/H', fecha:'30 jun', ciudad:'East Rutherford' },
-    { id:'r32_7',  pL:'1º Grupo A',   pV:'Mej. 3º C/E/F/H/I', fecha:'30 jun', ciudad:'Ciudad de México' },
-    { id:'r32_8',  pL:'1º Grupo L',   pV:'Mej. 3º E/H/I/J/K', fecha:'1 jul', ciudad:'Atlanta' },
+    { id:'r32_1',  pL:'2º Grupo A',   pV:'2º Grupo B',        fecha:'28 jun', ciudad:'Los Ángeles'    },
+    { id:'r32_2',  pL:'1º Grupo C',   pV:'2º Grupo F',        fecha:'29 jun', ciudad:'Houston'        },
+    { id:'r32_3',  pL:'1º Grupo E',   pV:'Mej. 3º A/B/C/D/F',fecha:'29 jun', ciudad:'Foxborough'     },
+    { id:'r32_4',  pL:'1º Grupo F',   pV:'2º Grupo C',        fecha:'29 jun', ciudad:'Monterrey'      },
+    { id:'r32_5',  pL:'2º Grupo E',   pV:'2º Grupo I',        fecha:'30 jun', ciudad:'Arlington'      },
+    { id:'r32_6',  pL:'1º Grupo I',   pV:'Mej. 3º C/D/F/G/H',fecha:'30 jun', ciudad:'East Rutherford'},
+    { id:'r32_7',  pL:'1º Grupo A',   pV:'Mej. 3º C/E/F/H/I',fecha:'30 jun', ciudad:'Ciudad de México'},
+    { id:'r32_8',  pL:'1º Grupo L',   pV:'Mej. 3º E/H/I/J/K',fecha:'1 jul',  ciudad:'Atlanta'        },
+    { id:'r32_9',  pL:'1º Grupo D',   pV:'Mej. 3º B/E/F/I/J',fecha:'2 jul',  ciudad:'San Francisco'  },
+    { id:'r32_10', pL:'1º Grupo G',   pV:'Mej. 3º A/E/H/I/J',fecha:'2 jul',  ciudad:'Seattle'        },
+    { id:'r32_11', pL:'2º Grupo K',   pV:'2º Grupo L',        fecha:'3 jul',  ciudad:'Toronto'        },
+    { id:'r32_12', pL:'1º Grupo H',   pV:'2º Grupo J',        fecha:'3 jul',  ciudad:'Los Ángeles'    },
+    { id:'r32_13', pL:'1º Grupo B',   pV:'Mej. 3º E/F/G/I/J',fecha:'4 jul',  ciudad:'Vancouver'      },
+    { id:'r32_14', pL:'1º Grupo J',   pV:'2º Grupo H',        fecha:'4 jul',  ciudad:'Kansas City'    },
+    { id:'r32_15', pL:'1º Grupo K',   pV:'Mej. 3º D/E/I/J/L',fecha:'5 jul',  ciudad:'Miami'          },
+    { id:'r32_16', pL:'2º Grupo D',   pV:'2º Grupo G',        fecha:'5 jul',  ciudad:'Dallas'         },
   ];
 
   return cruces.map(c => {
@@ -885,23 +917,30 @@ function obtenerPartidosFase(fase) {
   // el usuario puede rellenar el bracket completo antes del Mundial
   const fases = {
     '1/8':   [
-      { id:'r16_1', pL:'Gan. 1/16 P1', pV:'Gan. 1/16 P2', fecha:'5 jul',  ciudad:'Chicago'      },
-      { id:'r16_2', pL:'Gan. 1/16 P3', pV:'Gan. 1/16 P4', fecha:'6 jul',  ciudad:'Phoenix'       },
-      { id:'r16_3', pL:'Gan. 1/16 P5', pV:'Gan. 1/16 P6', fecha:'6 jul',  ciudad:'Denver'        },
-      { id:'r16_4', pL:'Gan. 1/16 P7', pV:'Gan. 1/16 P8', fecha:'7 jul',  ciudad:'Kansas City'   },
+      { id:'r16_1', pL:'Gan. P1',  pV:'Gan. P2',  fecha:'5 jul',  ciudad:'Chicago'       },
+      { id:'r16_2', pL:'Gan. P3',  pV:'Gan. P4',  fecha:'6 jul',  ciudad:'Phoenix'       },
+      { id:'r16_3', pL:'Gan. P5',  pV:'Gan. P6',  fecha:'6 jul',  ciudad:'Denver'        },
+      { id:'r16_4', pL:'Gan. P7',  pV:'Gan. P8',  fecha:'7 jul',  ciudad:'Kansas City'   },
+      { id:'r16_5', pL:'Gan. P9',  pV:'Gan. P10', fecha:'7 jul',  ciudad:'San Francisco' },
+      { id:'r16_6', pL:'Gan. P11', pV:'Gan. P12', fecha:'8 jul',  ciudad:'Seattle'       },
+      { id:'r16_7', pL:'Gan. P13', pV:'Gan. P14', fecha:'8 jul',  ciudad:'Toronto'       },
+      { id:'r16_8', pL:'Gan. P15', pV:'Gan. P16', fecha:'9 jul',  ciudad:'Miami'         },
     ],
     '1/4':   [
-      { id:'qf_1',  pL:'Gan. 1/8 Q1',  pV:'Gan. 1/8 Q2',  fecha:'9 jul',  ciudad:'Nueva York'   },
-      { id:'qf_2',  pL:'Gan. 1/8 Q3',  pV:'Gan. 1/8 Q4',  fecha:'10 jul', ciudad:'Miami'         },
+      { id:'qf_1',  pL:'Gan. 1/8 A', pV:'Gan. 1/8 B', fecha:'11 jul', ciudad:'Los Ángeles'  },
+      { id:'qf_2',  pL:'Gan. 1/8 C', pV:'Gan. 1/8 D', fecha:'12 jul', ciudad:'Nueva York'   },
+      { id:'qf_3',  pL:'Gan. 1/8 E', pV:'Gan. 1/8 F', fecha:'12 jul', ciudad:'Dallas'       },
+      { id:'qf_4',  pL:'Gan. 1/8 G', pV:'Gan. 1/8 H', fecha:'13 jul', ciudad:'Atlanta'      },
     ],
     'semi':  [
-      { id:'sf_1',  pL:'Gan. Cuar. 1', pV:'Gan. Cuar. 2', fecha:'14 jul', ciudad:'Los Ángeles'   },
+      { id:'sf_1',  pL:'Gan. QF1', pV:'Gan. QF2', fecha:'15 jul', ciudad:'Los Ángeles'   },
+      { id:'sf_2',  pL:'Gan. QF3', pV:'Gan. QF4', fecha:'16 jul', ciudad:'Nueva York'    },
     ],
     '3er':   [
-      { id:'tp_1',  pL:'Perd. Semi 1', pV:'Perd. Semi 2', fecha:'18 jul', ciudad:'Miami'          },
+      { id:'tp_1',  pL:'Perd. Semi 1', pV:'Perd. Semi 2', fecha:'18 jul', ciudad:'Miami'   },
     ],
     'final': [
-      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2', fecha:'19 jul', ciudad:'Nueva York'    },
+      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2', fecha:'19 jul', ciudad:'Nueva York' },
     ]
   };
 
@@ -922,15 +961,22 @@ function obtenerPartidosFase(fase) {
 function propagarGanador(partidoId, lado) {
   // Mapa de dependencias: qué partido alimenta cada slot
   const mapa = {
-    'r16_1': { local: 'r32_1', vis: 'r32_2' },
-    'r16_2': { local: 'r32_3', vis: 'r32_4' },
-    'r16_3': { local: 'r32_5', vis: 'r32_6' },
-    'r16_4': { local: 'r32_7', vis: 'r32_8' },
-    'qf_1':  { local: 'r16_1', vis: 'r16_2' },
-    'qf_2':  { local: 'r16_3', vis: 'r16_4' },
-    'sf_1':  { local: 'qf_1',  vis: 'qf_2'  },
-    'final_1':{ local: 'sf_1', vis: 'sf_1'  },
-    'tp_1':  { local: 'sf_1',  vis: 'sf_1'  },
+    'r16_1':   { local: 'r32_1',  vis: 'r32_2'  },
+    'r16_2':   { local: 'r32_3',  vis: 'r32_4'  },
+    'r16_3':   { local: 'r32_5',  vis: 'r32_6'  },
+    'r16_4':   { local: 'r32_7',  vis: 'r32_8'  },
+    'r16_5':   { local: 'r32_9',  vis: 'r32_10' },
+    'r16_6':   { local: 'r32_11', vis: 'r32_12' },
+    'r16_7':   { local: 'r32_13', vis: 'r32_14' },
+    'r16_8':   { local: 'r32_15', vis: 'r32_16' },
+    'qf_1':    { local: 'r16_1',  vis: 'r16_2'  },
+    'qf_2':    { local: 'r16_3',  vis: 'r16_4'  },
+    'qf_3':    { local: 'r16_5',  vis: 'r16_6'  },
+    'qf_4':    { local: 'r16_7',  vis: 'r16_8'  },
+    'sf_1':    { local: 'qf_1',   vis: 'qf_2'   },
+    'sf_2':    { local: 'qf_3',   vis: 'qf_4'   },
+    'final_1': { local: 'sf_1',   vis: 'sf_2'   },
+    'tp_1':    { local: 'sf_1',   vis: 'sf_2'   },
   };
   const dep = mapa[partidoId];
   if (!dep) return null;
