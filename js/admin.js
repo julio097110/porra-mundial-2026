@@ -572,7 +572,10 @@ function renderInfoPage() {
 // ══════════════════════════════════════════════════════════════
 
 function renderEspecialesAdmin() {
-  const especiales = _especiales;
+  const especiales = _especiales.map(e => ({
+    ...e,
+    nombre: _usuarios.find(u => u.uid === e.uid)?.nombre_visible || '—'
+  }));
 
   return `
     <div>
@@ -1036,15 +1039,7 @@ async function cargarEmailLog() {
 async function cargarEspeciales() {
   try {
     const snap = await getDocs(collection(db, 'pred_especiales'));
-    _especiales = [];
-    snap.forEach(d => {
-      const u = _usuarios.find(u => u.uid === d.id);
-      _especiales.push({
-        uid:    d.id,
-        nombre: u?.nombre_visible || '—',
-        ...d.data()
-      });
-    });
+    _especiales = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
   } catch (e) {
     _especiales = [];
   }
