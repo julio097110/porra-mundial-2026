@@ -23,10 +23,10 @@ import { PARTIDOS_GRUPOS, getPartidosPorGrupo, GRUPOS } from '../data/partidos.j
 // ── Configuración EmailJS ─────────────────────────────────────
 // ⚠️ SUSTITUYE estos valores con los tuyos de EmailJS
 // Los encontrarás en https://dashboard.emailjs.com
-const EMAILJS_PUBLIC_KEY        = 'TU_PUBLIC_KEY_AQUI';
-const EMAILJS_SERVICE_ID        = 'TU_SERVICE_ID_AQUI';
-const EMAILJS_TEMPLATE_PRED     = 'TU_TEMPLATE_PREDICCIONES_AQUI';
-const EMAILJS_TEMPLATE_AVISO    = 'TU_TEMPLATE_AVISO_AQUI';
+const EMAILJS_PUBLIC_KEY        = 'o2Rm6h_kSRdn3R4Rj';
+const EMAILJS_SERVICE_ID        = 'service_emvnra4';
+const EMAILJS_TEMPLATE_PRED     = 'template_fdn1f0v';
+const EMAILJS_TEMPLATE_AVISO    = 'template_f1g7bgv';
 
 // Email del administrador
 const ADMIN_EMAIL = 'pool2026mundial@gmail.com';
