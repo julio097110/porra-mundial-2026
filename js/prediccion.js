@@ -946,15 +946,27 @@ function obtenerPartidosFase(fase) {
 
   return (fases[fase] || []).map(c => {
     const datoAPI = _bracket[c.id] || {};
+    const esTercero = c.id === 'tp_1';
     return {
       ...c,
       desbloqueado:    true,  // siempre editable
-      equipoLocal:     datoAPI.equipoLocal     || propagarGanador(c.id, 'local') || null,
-      equipoVisitante: datoAPI.equipoVisitante || propagarGanador(c.id, 'vis')   || null,
+      equipoLocal:     datoAPI.equipoLocal     || (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null,
+      equipoVisitante: datoAPI.equipoVisitante || (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null,
       flagLocal:       datoAPI.flagLocal       || '',
       flagVisitante:   datoAPI.flagVisitante   || '',
     };
   });
+}
+
+// Propaga el perdedor de una semifinal al partido de 3er y 4º puesto
+function propagarPerdedor(srcId) {
+  const pred = _predElim[srcId];
+  if (!pred?.ganador) return null;
+  // Buscar los equipos del partido fuente en _bracket o propagando desde cuartos
+  const local = propagarGanador(srcId, 'local');
+  const vis   = propagarGanador(srcId, 'vis');
+  if (!local && !vis) return null;
+  return pred.ganador === local ? (vis || null) : (local || null);
 }
 
 // Propaga el ganador elegido por el usuario al siguiente cruce
