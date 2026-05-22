@@ -1,6 +1,6 @@
 # 🌍 CONTEXTO PROYECTO — Porra Mundial 2026
 > Léeme al inicio de cada nueva conversación para tener el contexto completo.
-> Última actualización: 21 mayo 2026
+> Última actualización: 22 mayo 2026
 
 ---
 
@@ -105,14 +105,15 @@ usuarios/           { uid, email, nombre_visible, nombre_visible_lower, username
                       idioma, rol, pagado, creado_en }
 predicciones/       { uid, partido_id, local, visitante, timestamp }
 predicciones_elim/  { uid, partido_id, local, visitante, ganador, timestamp }
-pred_especiales/    { uid, campeon, subcampeon, mvp, goleador, bloqueado }
+pred_especiales/    { uid, campeon, subcampeon, mvp, goleador, bloqueado,
+                      mvp_corregido, goleador_corregido }
 resultados/         { partido_id, goles_local, goles_visitante, confirmado,
                       confirmado_por, confirmado_en }
 puntos/             { uid, partido_id, puntos, tipo, timestamp }
 clasificacion/      { uid, total, actualizado }
 config/general      { fecha_limite_grupos, fecha_limite_eliminatorias,
                       bote_total, porra_llena, enlace_revolut, enlace_vipps,
-                      mensaje_es, mensaje_en }
+                      mensaje_es, mensaje_en, mvp_oficial, goleador_oficial }
 config/bracket_eliminatorias  { cruces de 1/16 a final con equipos reales }
 email_log/          { tipo, jugador, timestamp, descripcion }
 ```
@@ -154,6 +155,7 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 **Predicciones especiales (3ª sub-pestaña):**
 - Campeón (autocompletado 48 equipos) · Subcampeón · MVP (texto libre) · Goleador (texto libre)
 - Botón borrar especiales
+- Cuando el plazo está cerrado: el usuario ve lo que escribió + aviso si el admin lo corrigió + resultado oficial cuando esté disponible (✅/❌)
 
 ### Pestaña "Resultados"
 - **Vista jugador:** resultados confirmados agrupados, próximos atenuados
@@ -178,14 +180,16 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 - El usuario propio destacado en verde
 
 ### Panel de Admin (8 secciones)
-1. **Resumen** — estadísticas + botón "Recalcular todos los puntos" (borra todo y recalcula desde cero)
-2. **Jugadores** — crear/editar/eliminar jugadores, marcar pagos. Crear usuarios usa la REST API de Firebase para no cerrar la sesión del admin.
+1. **Resumen** — estadísticas + accesos rápidos
+2. **Jugadores** — crear/editar/eliminar jugadores, marcar pagos
 3. **Ver predicciones** — resumen de predicciones de cada jugador + borrar por tipo con confirmación
 4. **Fechas límite** — fecha cierre grupos y eliminatorias
 5. **Pagos** — enlaces Revolut/Vipps + toggle "porra llena" + campo bote total con desglose automático
 6. **Emails** — log de últimos 20 emails enviados
 7. **Página info** — mensaje personalizado ES/EN para la página pública
-8. **Especiales** — corrección ortográfica de MVP y goleador sin afectar puntos
+8. **Especiales** — dos bloques:
+   - **Resultado oficial:** el admin introduce el MVP real y el goleador real del torneo y los guarda en `config/general`. Botón separado "Recalcular puntos especiales" que recorre todas las `pred_especiales`, compara usando el campo corregido si existe (si no el original), y puntúa con 3 pts si coincide (normalizado: sin acentos, minúsculas).
+   - **Corrección ortográfica:** tabla con el nombre original del usuario y un campo para introducir la corrección. Escribe en `mvp_corregido`/`goleador_corregido` sin tocar `mvp`/`goleador` original.
 
 ### Página info.html (pública, sin login)
 - Bilingüe ES/EN independiente del login
@@ -224,62 +228,35 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 
 ## 8. DISEÑO Y CSS
 
-- **Paleta:** verde campo de fútbol. Variables principales: `--gd` (verde muy oscuro), `--gm` (verde medio), `--gl` (verde claro), `--gp` (verde pálido), `--gg` (verde fantasma)
-- **Tipografía:** Bebas Neue (títulos/números) + DM Sans (texto)
-- **Tabs de navegación:** Opción B — texto verde oscuro sobre fondo verde pálido (`var(--gp)`), pestaña activa con fondo `var(--gg)` y borde superior verde oscuro
-- **Resultados confirmados:** fondo gris neutro `#f5f5f5` (variante 3)
-- **Clasificación filas normales:** fondo `#f4f9ee` (no blanco)
-- **Responsive:** mobile-first. Tabs en la parte inferior en móvil, en la parte superior en desktop (≥768px)
-- **Banderas:** emojis Unicode nativos. Twemoji se intentó implementar pero se eliminó porque causaba errores en producción.
+- **Paleta:** verde campo de fútbol
+- Variables CSS principales: `--gd` (verde oscuro), `--gl` (verde claro), `--tm` (texto medio), `--ts` (texto suave), `--r` (rojo error), `--radius` (border-radius)
+- Diseño responsive: mobile-first
+- Sin frameworks CSS — todo custom en `css/styles.css`
 
 ---
 
-## 9. DATOS DE LOS PARTIDOS
+## 9. BUGS CONOCIDOS (pendientes)
 
-Los 72 partidos están hardcodeados en `data/partidos.js` con fechas en UTC. Son los 12 grupos (A–L) con 4 equipos cada uno y 6 partidos por grupo. Los equipos son:
-
-**Grupo A:** México, Sudáfrica, Corea del Sur, Chequia
-**Grupo B:** Canadá, Bosnia y Herzegovina, Qatar, Suiza
-**Grupo C:** Brasil, Marruecos, Haití, Escocia
-**Grupo D:** EEUU, Paraguay, Australia, Türkiye
-**Grupo E:** Alemania, Curazao, Costa de Marfil, Ecuador
-**Grupo F:** Países Bajos, Japón, Suecia, Túnez
-**Grupo G:** Bélgica, Egipto, Irán, Nueva Zelanda
-**Grupo H:** España, Cabo Verde, Arabia Saudí, Uruguay
-**Grupo I:** Francia, Senegal, Irak, Noruega
-**Grupo J:** Argentina, Argelia, Austria, Jordania
-**Grupo K:** Portugal, RD Congo, Uzbekistán, Colombia
-**Grupo L:** Inglaterra, Croacia, Ghana, Panamá
-
----
-
-## 10. BUGS CONOCIDOS Y PENDIENTES
-
-### 🔴 Pendiente de resolver
-| Bug | Descripción | Causa |
-|-----|-------------|-------|
-| API football-data CORS | El botón "Actualizar API" no funciona en producción | La API solo permite peticiones desde localhost. Solución: el admin confirma resultados manualmente. |
-
-### 🟡 Limitaciones conocidas y decisiones de diseño
-- **Login solo con email** — decisión deliberada. Los jugadores entran con su email completo y contraseña. Se intentó implementar login por username pero se revirtió. No se considera un bug.
+- **Login por username** — falla en producción con `Missing or insufficient permissions`. Por ahora los jugadores entran con email completo. Se intentó implementar login por username pero se revirtió. No se considera un bug urgente.
 - **Banderas no se ven en Windows** — emojis Unicode no soportados en Windows. Twemoji se intentó implementar pero se eliminó porque rompía la página en producción. No se va a reintentar.
 - **API football-data solo en localhost** — el admin confirma resultados manualmente desde la vista admin. El botón "Actualizar API" está deshabilitado en producción.
 - **Índices de Firestore** — se crean bajo demanda al navegar la app y seguir los enlaces de error en la consola del navegador.
 
-### ✅ Bugs resueltos recientemente
+### ✅ Bugs resueltos
 - Panel admin daba `SyntaxError: Unexpected end of input` — faltaba el cuerpo de `_adminGuardarEsp`
 - Twemoji rompía la página — eliminado completamente
 - `window.parseTwemoji` sigue definida como función vacía para que los módulos no fallen
 - EmailJS configurado con claves reales — emails funcionando
-- Bracket de eliminatorias solo mostraba la mitad de partidos (8 en lugar de 16 en 1/16, etc.) — corregido con el bracket completo
-- Ganador de semifinal aparecía tanto en la final como en el 3er/4º puesto — corregido propagando el perdedor al partido de 3er puesto
-- Sección "Predicciones especiales" del panel admin mostraba `[object Promise]` en lugar del contenido — `renderEspecialesAdmin` era `async` y devolvía una Promise sin hacer `await`. Corregido extrayendo la carga de datos a `cargarEspeciales()` (llamada en el `Promise.all` de `initAdmin`) y convirtiendo `renderEspecialesAdmin` en función síncrona que usa `_especiales`.
+- Bracket de eliminatorias solo mostraba la mitad de partidos — corregido con el bracket completo
+- Ganador de semifinal aparecía tanto en la final como en el 3er/4º puesto — corregido propagando el perdedor
+- Sección "Especiales" del panel admin mostraba `[object Promise]` — corregido convirtiendo `renderEspecialesAdmin` en función síncrona
+- `cargarEspeciales` se ejecutaba en paralelo con `cargarUsuarios` y el nombre de usuario aparecía como `—` — corregido ejecutándola después del `Promise.all`
 
 ---
 
-## 11. CÓMO ACTUALIZAR LA WEB
+## 10. CÓMO ACTUALIZAR LA WEB
 
-Los archivos se editan **directamente en GitHub desde el navegador** (no se usa Git Gui ni terminal):
+Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gui ni terminal):
 
 1. Ir al repositorio en https://github.com/julio097110/porra-mundial-2026
 2. Navegar hasta el archivo a editar
@@ -294,21 +271,35 @@ Los archivos se editan **directamente en GitHub desde el navegador** (no se usa 
 - Cambiar fechas límite
 - Introducir el bote total
 - Confirmar resultados
+- Introducir MVP oficial y goleador oficial
+- Corregir ortografía de MVP/goleador de jugadores
 
 ---
 
-## 12. ESTADO ACTUAL (mayo 2026)
+## 11. ESTADO ACTUAL (22 mayo 2026)
 
 - ✅ Web publicada y accesible
 - ✅ Firebase Auth + Firestore funcionando
 - ✅ Admin puede crear jugadores, marcar pagos, confirmar resultados
-- ✅ Jugadores reales creados y probando la app
-- ✅ Panel admin funcionando correctamente
+- ✅ Jugadores reales creados y usando la app
+- ✅ Panel admin funcionando correctamente (8 secciones)
 - ✅ Login con email completo + contraseña (decisión de diseño final)
-- ✅ EmailJS configurado y funcionando (2 plantillas: predicciones guardadas y aviso diario)
+- ✅ EmailJS configurado y funcionando (2 plantillas)
 - ✅ Bracket de eliminatorias completo: 16+8+4+2+1+1 partidos
+- ✅ Admin puede introducir MVP oficial y goleador oficial del torneo
+- ✅ Admin puede corregir ortografía de MVP/goleador sin perder el original
+- ✅ Usuario ve su predicción original + aviso de corrección del admin + resultado oficial con ✅/❌
+- ✅ Recálculo de puntos especiales con botón separado
 - ⚠️ Banderas: no se ven en Windows (decisión de no resolver)
 - ⚠️ API de resultados: solo funciona desde localhost (el admin confirma manualmente)
+
+---
+
+## 12. NORMAS DE TRABAJO CON CLAUDE
+
+- **Antes de generar cualquier archivo**, Claude presenta el plan completo y espera confirmación explícita del usuario.
+- **Para trabajar con el código**, el usuario sube los archivos actuales directamente al chat. El knowledge del proyecto contiene contexto y documentación, no el código fuente actualizado.
+- Cuando se pidan cambios en múltiples archivos, Claude los genera todos enteros y listos para subir a GitHub.
 
 ---
 
@@ -344,3 +335,4 @@ Los archivos se editan **directamente en GitHub desde el navegador** (no se usa 
 | 2 | 21 may 2026 | `js/prediccion.js` | Bracket de eliminatorias corregido: añadidos los 8 partidos que faltaban en 1/16 (r32_9 a r32_16), 4 en 1/8 (r16_5 a r16_8), 2 en cuartos (qf_3 y qf_4) y la segunda semifinal (sf_2). Canvas ampliado de 920×940px a 1100×1380px. Mapa de dependencias reescrito completo. |
 | 3 | 21 may 2026 | `js/prediccion.js` | Corregido bug en 3er y 4º puesto: el ganador de la semifinal aparecía como los dos equipos del partido. Añadida función `propagarPerdedor()` que propaga el equipo eliminado de cada semifinal al partido de 3er puesto. |
 | 4 | 21 may 2026 | `js/admin.js` | Corregido bug en sección "Especiales" del panel admin: mostraba `[object Promise]` porque `renderEspecialesAdmin` era `async`. Extraída la carga de datos a nueva función `cargarEspeciales()` (integrada en el `Promise.all` de `initAdmin`). `renderEspecialesAdmin` convertida a función síncrona que usa la variable de módulo `_especiales`. |
+| 5 | 22 may 2026 | `js/admin.js`, `js/prediccion.js`, `i18n/es.json`, `i18n/en.json` | Nueva funcionalidad: admin puede introducir MVP oficial y goleador oficial del torneo (`mvp_oficial`, `goleador_oficial` en `config/general`). Botón separado para recalcular puntos especiales. Admin puede corregir ortografía de MVP/goleador de cada jugador escribiendo en `mvp_corregido`/`goleador_corregido` sin tocar el original. Usuario ve su predicción original y, si el admin la corrigió, un aviso con el nombre corregido. Cuando hay resultado oficial, el usuario ve ✅/❌. Corregido bug: `cargarEspeciales` se ejecutaba en paralelo con `cargarUsuarios` haciendo que el nombre del usuario apareciera como `—`. |
