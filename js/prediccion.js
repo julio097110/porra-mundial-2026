@@ -514,14 +514,14 @@ function renderEspecialesTab(contenedor) {
     const norm = str =>
       (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-    // MVP — lo que escribió el usuario es mvp_original si existe, si no mvp
-    const mvpOriginal  = esp.mvp_original || esp.mvp || '—';
+    // MVP — lo que escribió el usuario es siempre esp.mvp
+    const mvpOriginal  = esp.mvp           || '—';
     const mvpCorregido = esp.mvp_corregido || '';
     const mvpEfectivo  = mvpCorregido || mvpOriginal;
     const mvpAcierto   = mvpOficial && norm(mvpOficial) === norm(mvpEfectivo) && mvpEfectivo !== '—';
 
-    // Goleador
-    const golOriginal  = esp.goleador_original || esp.goleador || '—';
+    // Goleador — lo que escribió el usuario es siempre esp.goleador
+    const golOriginal  = esp.goleador           || '—';
     const golCorregido = esp.goleador_corregido || '';
     const golEfectivo  = golCorregido || golOriginal;
     const golAcierto   = golOficial && norm(golOficial) === norm(golEfectivo) && golEfectivo !== '—';
