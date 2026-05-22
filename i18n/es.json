@@ -253,9 +253,15 @@
       "saveBtn":     "Guardar cambios"
     },
     "specials": {
-      "title":       "Predicciones especiales — corrección ortográfica",
-      "subtitle":    "Puedes corregir el nombre de MVP y goleador sin afectar a los puntos",
-      "saveBtn":     "Guardar correcciones"
+      "title":           "Predicciones especiales",
+      "subtitle":        "Corrección ortográfica: corrige el nombre sin afectar al original del jugador",
+      "saveBtn":         "Guardar correcciones",
+      "officialTitle":   "Resultado oficial del torneo",
+      "officialSubtitle":"Introduce el MVP y el goleador real. Los puntos se calculan al pulsar Recalcular.",
+      "saveOfficialBtn": "Guardar resultado oficial",
+      "recalcBtn":       "Recalcular puntos especiales",
+      "officialSet":     "Resultado oficial guardado",
+      "correctedCol":    "Corregido"
     }
   },
 
