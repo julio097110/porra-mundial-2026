@@ -507,6 +507,45 @@ function renderEspecialesTab(contenedor) {
   const fechaStr = formatFechaLimite(_config.fecha_limite_grupos);
 
   if (cerrado && esp.bloqueado) {
+    const mvpOficial = _config.mvp_oficial      || '';
+    const golOficial = _config.goleador_oficial || '';
+
+    // Normalización para comparar sin importar acentos ni mayúsculas
+    const norm = str =>
+      (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    // MVP
+    const mvpOriginal  = esp.mvp           || '—';
+    const mvpCorregido = esp.mvp_corregido || '';
+    const mvpEfectivo  = mvpCorregido || mvpOriginal;
+    const mvpAcierto   = mvpOficial && norm(mvpOficial) === norm(mvpEfectivo) && mvpEfectivo !== '—';
+
+    // Goleador
+    const golOriginal  = esp.goleador           || '—';
+    const golCorregido = esp.goleador_corregido || '';
+    const golEfectivo  = golCorregido || golOriginal;
+    const golAcierto   = golOficial && norm(golOficial) === norm(golEfectivo) && golEfectivo !== '—';
+
+    const infoCorreccion = (original, corregido, oficial, acierto) => {
+      let html = `<div class="special-value">${original}</div>`;
+      if (corregido && corregido !== original) {
+        html += `<div style="font-size:11px; color:var(--tm); margin-top:3px;">
+          ✏️ Corregido por el admin: <strong>${corregido}</strong>
+        </div>`;
+      }
+      if (oficial) {
+        html += `<div style="font-size:11px; margin-top:4px; font-weight:600;
+          color:${acierto ? 'var(--gl)' : 'var(--r)'};">
+          ${acierto ? '✅ ¡Acertado!' : '❌ No acertado'} · Resultado oficial: <strong>${oficial}</strong>
+        </div>`;
+      } else {
+        html += `<div style="font-size:11px; color:var(--tm); margin-top:3px;">
+          ⏳ Resultado oficial pendiente
+        </div>`;
+      }
+      return html;
+    };
+
     contenedor.innerHTML = `
       <div class="notice locked" style="margin-top:8px;">
         🔒 ${t('specials.lockedSince')} ${fechaStr}
@@ -521,11 +560,11 @@ function renderEspecialesTab(contenedor) {
       </div>
       <div class="special-card locked-card">
         <div class="special-label">${t('specials.mvp')} <span class="special-locked-badge">🔒 ${t('specials.mvpPts')}</span></div>
-        <div class="special-value">${esp.mvp || '—'}</div>
+        ${infoCorreccion(mvpOriginal, mvpCorregido, mvpOficial, mvpAcierto)}
       </div>
       <div class="special-card locked-card">
         <div class="special-label">${t('specials.topScorer')} <span class="special-locked-badge">🔒 ${t('specials.topScorerPts')}</span></div>
-        <div class="special-value">${esp.goleador || '—'}</div>
+        ${infoCorreccion(golOriginal, golCorregido, golOficial, golAcierto)}
       </div>`;
     return;
   }
