@@ -568,21 +568,64 @@ function renderInfoPage() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PREDICCIONES ESPECIALES (corrección ortográfica)
+//  PREDICCIONES ESPECIALES (resultado oficial + corrección)
 // ══════════════════════════════════════════════════════════════
 
 function renderEspecialesAdmin() {
-  const especiales = _especiales.map(e => ({
-    ...e,
-    nombre: _usuarios.find(u => u.uid === e.uid)?.nombre_visible || '—'
-  }));
+  const mvpOficial = _config.mvp_oficial      || '';
+  const golOficial = _config.goleador_oficial || '';
 
   return `
     <div>
       <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:6px;">
         ⭐ ${t('admin.specials.title')}
       </div>
-      <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+
+      <!-- ── Resultado oficial ── -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-body">
+          <div style="font-size:13px; font-weight:600; color:var(--gd); margin-bottom:6px;">
+            🏅 ${t('admin.specials.officialTitle')}
+          </div>
+          <div style="font-size:12px; color:var(--tm); margin-bottom:12px;">
+            ${t('admin.specials.officialSubtitle')}
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+            <div style="flex:1; min-width:180px;">
+              <label class="form-label">⭐ ${t('specials.mvp')}</label>
+              <input class="form-input" type="text" id="mvpOficial"
+                value="${mvpOficial}"
+                placeholder="${t('specials.playerPlaceholder')}"
+                style="font-size:13px;">
+            </div>
+            <div style="flex:1; min-width:180px;">
+              <label class="form-label">⚽ ${t('specials.topScorer')}</label>
+              <input class="form-input" type="text" id="golOficial"
+                value="${golOficial}"
+                placeholder="${t('specials.playerPlaceholder')}"
+                style="font-size:13px;">
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="window._adminGuardarOficial()">
+              💾 ${t('admin.specials.saveOfficialBtn')}
+            </button>
+            <button class="btn btn-secondary" onclick="window._adminRecalcularEspeciales()">
+              🔄 ${t('admin.specials.recalcBtn')}
+            </button>
+          </div>
+          ${mvpOficial || golOficial ? `
+            <div style="margin-top:10px; font-size:11px; color:var(--gl);">
+              ✅ ${t('admin.specials.officialSet')}:
+              ${mvpOficial ? `⭐ <strong>${mvpOficial}</strong>` : ''}
+              ${mvpOficial && golOficial ? ' · ' : ''}
+              ${golOficial ? `⚽ <strong>${golOficial}</strong>` : ''}
+            </div>` : ''}
+        </div>
+      </div>
+
+      <!-- ── Corrección ortográfica ── -->
+      <div style="font-size:12px; color:var(--tm); margin-bottom:10px;">
         ${t('admin.specials.subtitle')}
       </div>
       <div class="card">
@@ -591,22 +634,32 @@ function renderEspecialesAdmin() {
             <thead>
               <tr>
                 <th>${t('admin.players.name')}</th>
-                <th>⭐ ${t('specials.mvp')}</th>
-                <th>⚽ ${t('specials.topScorer')}</th>
+                <th>⭐ MVP <span style="font-weight:400; color:var(--tm);">(original)</span></th>
+                <th>⭐ ${t('admin.specials.correctedCol')}</th>
+                <th>⚽ Goleador <span style="font-weight:400; color:var(--tm);">(original)</span></th>
+                <th>⚽ ${t('admin.specials.correctedCol')}</th>
                 <th>${t('admin.players.actions')}</th>
               </tr>
             </thead>
             <tbody>
-              ${especiales.map(e => `
+              ${_especiales.map(e => `
                 <tr>
                   <td><span class="player-name">${e.nombre}</span></td>
+                  <td style="color:var(--tm); font-size:11px;">${e.mvp || '—'}</td>
                   <td>
-                    <input class="form-input" type="text" value="${e.mvp || ''}"
-                      id="mvp_${e.uid}" style="font-size:12px; padding:5px 8px;">
+                    <input class="form-input" type="text"
+                      value="${e.mvp_corregido || ''}"
+                      id="mvp_${e.uid}"
+                      placeholder="${e.mvp || ''}"
+                      style="font-size:12px; padding:5px 8px;">
                   </td>
+                  <td style="color:var(--tm); font-size:11px;">${e.goleador || '—'}</td>
                   <td>
-                    <input class="form-input" type="text" value="${e.goleador || ''}"
-                      id="gol_${e.uid}" style="font-size:12px; padding:5px 8px;">
+                    <input class="form-input" type="text"
+                      value="${e.goleador_corregido || ''}"
+                      id="gol_${e.uid}"
+                      placeholder="${e.goleador || ''}"
+                      style="font-size:12px; padding:5px 8px;">
                   </td>
                   <td>
                     <button class="btn btn-secondary btn-sm"
@@ -879,15 +932,120 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar corrección ortográfica especiales
+  // Guardar corrección ortográfica — escribe en mvp_corregido/goleador_corregido
+  // sin tocar el campo original del usuario
   window._adminGuardarEsp = async (uid) => {
     try {
-      const mvp      = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
-      const goleador = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
-      await updateDoc(doc(db, 'pred_especiales', uid), { mvp, goleador });
-      window.mostrarToast('✅ Corregido correctamente');
+      const mvpCorr = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
+      const golCorr = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
+      await updateDoc(doc(db, 'pred_especiales', uid), {
+        mvp_corregido:      mvpCorr,
+        goleador_corregido: golCorr
+      });
+      // Actualizar estado local
+      const idx = _especiales.findIndex(e => e.uid === uid);
+      if (idx !== -1) {
+        _especiales[idx].mvp_corregido      = mvpCorr;
+        _especiales[idx].goleador_corregido = golCorr;
+      }
+      window.mostrarToast('✅ Corrección guardada');
     } catch (e) {
       console.error('[guardarEsp]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  // Guardar MVP oficial y goleador oficial del torneo
+  window._adminGuardarOficial = async () => {
+    try {
+      const mvpOfi = document.getElementById('mvpOficial')?.value?.trim() || '';
+      const golOfi = document.getElementById('golOficial')?.value?.trim() || '';
+      await setDoc(
+        doc(db, 'config', 'general'),
+        { mvp_oficial: mvpOfi, goleador_oficial: golOfi },
+        { merge: true }
+      );
+      _config.mvp_oficial      = mvpOfi;
+      _config.goleador_oficial = golOfi;
+      window.mostrarToast('✅ Resultado oficial guardado');
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+    } catch (e) {
+      console.error('[guardarOficial]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  // Recalcular puntos de MVP y goleador para todos los jugadores
+  window._adminRecalcularEspeciales = async () => {
+    try {
+      const mvpOfi = _config.mvp_oficial      || '';
+      const golOfi = _config.goleador_oficial || '';
+
+      if (!mvpOfi && !golOfi) {
+        window.mostrarToast('⚠️ Primero guarda el MVP oficial y/o el goleador oficial', 4000);
+        return;
+      }
+
+      window.mostrarToast('🔄 Calculando puntos especiales...');
+
+      // Normalización: minúsculas + sin acentos
+      const norm = str =>
+        (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+      const snap  = await getDocs(collection(db, 'pred_especiales'));
+      const batch = [];
+
+      snap.forEach(d => {
+        const uid  = d.id;
+        const data = d.data();
+
+        // Usar corregido si existe, si no el original del usuario
+        const predMvp = norm(data.mvp_corregido || data.mvp || '');
+        const predGol = norm(data.goleador_corregido || data.goleador || '');
+
+        const ptosMvp = (mvpOfi && predMvp && norm(mvpOfi) === predMvp) ? 3 : 0;
+        const ptosGol = (golOfi && predGol && norm(golOfi) === predGol) ? 3 : 0;
+
+        if (mvpOfi) {
+          batch.push(setDoc(
+            doc(db, 'puntos', `${uid}_especial_mvp`),
+            { uid, partido_id: 'especial_mvp', puntos: ptosMvp, tipo: 'especial', timestamp: serverTimestamp() },
+            { merge: true }
+          ));
+        }
+        if (golOfi) {
+          batch.push(setDoc(
+            doc(db, 'puntos', `${uid}_especial_goleador`),
+            { uid, partido_id: 'especial_goleador', puntos: ptosGol, tipo: 'especial', timestamp: serverTimestamp() },
+            { merge: true }
+          ));
+        }
+      });
+
+      await Promise.all(batch);
+
+      // Recalcular totales globales
+      const puntosSnap = await getDocs(collection(db, 'puntos'));
+      const totales    = {};
+      puntosSnap.forEach(d => {
+        const { uid, puntos } = d.data();
+        if (!uid) return;
+        totales[uid] = (totales[uid] || 0) + (puntos || 0);
+      });
+      await Promise.all(
+        Object.entries(totales).map(([uid, total]) =>
+          setDoc(
+            doc(db, 'clasificacion', uid),
+            { uid, total, actualizado: serverTimestamp() },
+            { merge: true }
+          )
+        )
+      );
+
+      window.mostrarToast('✅ Puntos especiales recalculados correctamente');
+    } catch (e) {
+      console.error('[recalcularEspeciales]', e);
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     }
   };
@@ -927,8 +1085,16 @@ function registrarHandlers() {
             <div style="font-size:12px; display:grid; grid-template-columns:1fr 1fr; gap:4px;">
               <span style="color:var(--tm);">🏆 Campeón:</span><strong>${esp.campeon    || '—'}</strong>
               <span style="color:var(--tm);">🥈 Subcampeón:</span><strong>${esp.subcampeon || '—'}</strong>
-              <span style="color:var(--tm);">⭐ MVP:</span><strong>${esp.mvp        || '—'}</strong>
-              <span style="color:var(--tm);">⚽ Goleador:</span><strong>${esp.goleador   || '—'}</strong>
+              <span style="color:var(--tm);">⭐ MVP:</span>
+              <strong>
+                ${esp.mvp || '—'}
+                ${esp.mvp_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.mvp_corregido})</span>` : ''}
+              </strong>
+              <span style="color:var(--tm);">⚽ Goleador:</span>
+              <strong>
+                ${esp.goleador || '—'}
+                ${esp.goleador_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.goleador_corregido})</span>` : ''}
+              </strong>
             </div>
           </div>
         </div>`;
@@ -1039,7 +1205,10 @@ async function cargarEmailLog() {
 async function cargarEspeciales() {
   try {
     const snap = await getDocs(collection(db, 'pred_especiales'));
-    _especiales = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    _especiales = snap.docs.map(d => {
+      const u = _usuarios.find(u => u.uid === d.id);
+      return { uid: d.id, nombre: u?.nombre_visible || '—', ...d.data() };
+    });
   } catch (e) {
     _especiales = [];
   }
