@@ -253,9 +253,15 @@
       "saveBtn":     "Save changes"
     },
     "specials": {
-      "title":       "Special predictions — spelling correction",
-      "subtitle":    "You can fix the spelling of MVP and top scorer without affecting points",
-      "saveBtn":     "Save corrections"
+      "title":           "Special predictions",
+      "subtitle":        "Spelling correction: fix the name without affecting the player's original",
+      "saveBtn":         "Save corrections",
+      "officialTitle":   "Official tournament result",
+      "officialSubtitle":"Enter the real MVP and top scorer. Points are calculated when you click Recalculate.",
+      "saveOfficialBtn": "Save official result",
+      "recalcBtn":       "Recalculate special points",
+      "officialSet":     "Official result saved",
+      "correctedCol":    "Corrected"
     }
   },
 
