@@ -514,32 +514,39 @@ function renderEspecialesTab(contenedor) {
     const norm = str =>
       (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-    // MVP
-    const mvpOriginal  = esp.mvp           || '—';
+    // MVP — lo que escribió el usuario es mvp_original si existe, si no mvp
+    const mvpOriginal  = esp.mvp_original || esp.mvp || '—';
     const mvpCorregido = esp.mvp_corregido || '';
     const mvpEfectivo  = mvpCorregido || mvpOriginal;
     const mvpAcierto   = mvpOficial && norm(mvpOficial) === norm(mvpEfectivo) && mvpEfectivo !== '—';
 
     // Goleador
-    const golOriginal  = esp.goleador           || '—';
+    const golOriginal  = esp.goleador_original || esp.goleador || '—';
     const golCorregido = esp.goleador_corregido || '';
     const golEfectivo  = golCorregido || golOriginal;
     const golAcierto   = golOficial && norm(golOficial) === norm(golEfectivo) && golEfectivo !== '—';
 
     const infoCorreccion = (original, corregido, oficial, acierto) => {
+      // Nombre que escribió el usuario (siempre visible)
       let html = `<div class="special-value">${original}</div>`;
-      if (corregido && corregido !== original) {
-        html += `<div style="font-size:11px; color:var(--tm); margin-top:3px;">
-          ✏️ Corregido por el admin: <strong>${corregido}</strong>
+
+      // Aviso de corrección del admin (solo si existe y es diferente)
+      if (corregido && norm(corregido) !== norm(original)) {
+        html += `<div style="font-size:11px; color:var(--gd); margin-top:5px;
+          background:var(--gl-pale, #f0f7e8); border-left:3px solid var(--gl);
+          padding:4px 8px; border-radius:4px;">
+          ✏️ El admin lo ha corregido a: <strong>${corregido}</strong>
         </div>`;
       }
+
+      // Resultado oficial y acierto
       if (oficial) {
-        html += `<div style="font-size:11px; margin-top:4px; font-weight:600;
+        html += `<div style="font-size:11px; margin-top:6px; font-weight:600;
           color:${acierto ? 'var(--gl)' : 'var(--r)'};">
           ${acierto ? '✅ ¡Acertado!' : '❌ No acertado'} · Resultado oficial: <strong>${oficial}</strong>
         </div>`;
       } else {
-        html += `<div style="font-size:11px; color:var(--tm); margin-top:3px;">
+        html += `<div style="font-size:11px; color:var(--tm); margin-top:4px;">
           ⏳ Resultado oficial pendiente
         </div>`;
       }
