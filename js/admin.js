@@ -41,9 +41,9 @@ export async function initAdmin(app) {
     await Promise.all([
       cargarUsuarios(),
       cargarConfig(),
-      cargarEmailLog(),
-      cargarEspeciales()
+      cargarEmailLog()
     ]);
+    await cargarEspeciales(); // necesita _usuarios ya cargado
     renderAdmin(contenedor);
 
     // Refrescar textos al cambiar idioma
@@ -933,37 +933,19 @@ function registrarHandlers() {
   };
 
   // Guardar corrección ortográfica
-  // Guarda mvp_corregido y, si aún no existe mvp_original, copia el mvp actual
-  // para que el usuario siempre pueda ver lo que él escribió originalmente.
+  // Escribe en mvp_corregido/goleador_corregido sin tocar mvp/goleador original del usuario
   window._adminGuardarEsp = async (uid) => {
     try {
       const mvpCorr = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
       const golCorr = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
-
-      const entry = _especiales.find(e => e.uid === uid) || {};
-      const updates = {
+      await updateDoc(doc(db, 'pred_especiales', uid), {
         mvp_corregido:      mvpCorr,
         goleador_corregido: golCorr
-      };
-
-      // Si aún no hay mvp_original, preservar el valor actual de mvp como original
-      if (mvpCorr && !entry.mvp_original && entry.mvp) {
-        updates.mvp_original = entry.mvp;
-      }
-      // Si aún no hay goleador_original, preservar el valor actual de goleador
-      if (golCorr && !entry.goleador_original && entry.goleador) {
-        updates.goleador_original = entry.goleador;
-      }
-
-      await updateDoc(doc(db, 'pred_especiales', uid), updates);
-
-      // Actualizar estado local
+      });
       const idx = _especiales.findIndex(e => e.uid === uid);
       if (idx !== -1) {
         _especiales[idx].mvp_corregido      = mvpCorr;
         _especiales[idx].goleador_corregido = golCorr;
-        if (updates.mvp_original)      _especiales[idx].mvp_original      = updates.mvp_original;
-        if (updates.goleador_original) _especiales[idx].goleador_original = updates.goleador_original;
       }
       window.mostrarToast('✅ Corrección guardada');
     } catch (e) {
