@@ -645,20 +645,20 @@ function renderEspecialesAdmin() {
               ${_especiales.map(e => `
                 <tr>
                   <td><span class="player-name">${e.nombre}</span></td>
-                  <td style="color:var(--tm); font-size:11px;">${e.mvp || '—'}</td>
+                  <td style="color:var(--tm); font-size:11px;">${e.mvp_original || e.mvp || '—'}</td>
                   <td>
                     <input class="form-input" type="text"
                       value="${e.mvp_corregido || ''}"
                       id="mvp_${e.uid}"
-                      placeholder="${e.mvp || ''}"
+                      placeholder="${e.mvp_original || e.mvp || ''}"
                       style="font-size:12px; padding:5px 8px;">
                   </td>
-                  <td style="color:var(--tm); font-size:11px;">${e.goleador || '—'}</td>
+                  <td style="color:var(--tm); font-size:11px;">${e.goleador_original || e.goleador || '—'}</td>
                   <td>
                     <input class="form-input" type="text"
                       value="${e.goleador_corregido || ''}"
                       id="gol_${e.uid}"
-                      placeholder="${e.goleador || ''}"
+                      placeholder="${e.goleador_original || e.goleador || ''}"
                       style="font-size:12px; padding:5px 8px;">
                   </td>
                   <td>
@@ -932,21 +932,38 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar corrección ortográfica — escribe en mvp_corregido/goleador_corregido
-  // sin tocar el campo original del usuario
+  // Guardar corrección ortográfica
+  // Guarda mvp_corregido y, si aún no existe mvp_original, copia el mvp actual
+  // para que el usuario siempre pueda ver lo que él escribió originalmente.
   window._adminGuardarEsp = async (uid) => {
     try {
       const mvpCorr = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
       const golCorr = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
-      await updateDoc(doc(db, 'pred_especiales', uid), {
+
+      const entry = _especiales.find(e => e.uid === uid) || {};
+      const updates = {
         mvp_corregido:      mvpCorr,
         goleador_corregido: golCorr
-      });
+      };
+
+      // Si aún no hay mvp_original, preservar el valor actual de mvp como original
+      if (mvpCorr && !entry.mvp_original && entry.mvp) {
+        updates.mvp_original = entry.mvp;
+      }
+      // Si aún no hay goleador_original, preservar el valor actual de goleador
+      if (golCorr && !entry.goleador_original && entry.goleador) {
+        updates.goleador_original = entry.goleador;
+      }
+
+      await updateDoc(doc(db, 'pred_especiales', uid), updates);
+
       // Actualizar estado local
       const idx = _especiales.findIndex(e => e.uid === uid);
       if (idx !== -1) {
         _especiales[idx].mvp_corregido      = mvpCorr;
         _especiales[idx].goleador_corregido = golCorr;
+        if (updates.mvp_original)      _especiales[idx].mvp_original      = updates.mvp_original;
+        if (updates.goleador_original) _especiales[idx].goleador_original = updates.goleador_original;
       }
       window.mostrarToast('✅ Corrección guardada');
     } catch (e) {
