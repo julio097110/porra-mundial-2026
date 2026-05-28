@@ -337,6 +337,9 @@ function renderClasificacionGrupo(grupo, cerrado) {
         </div>
   `;
 
+  // Detectar empates a puntos Y diferencia de goles (necesario antes del forEach)
+  const empatesGD = detectarEmpatesGD(tabla);
+
   tabla.forEach((eq, i) => {
     const pasa = i < 2;
     const esEmpate = empatesGD.some(par => par[0].nombre === eq.nombre || par[1].nombre === eq.nombre);
@@ -358,9 +361,6 @@ function renderClasificacionGrupo(grupo, cerrado) {
   });
 
   html += `</div>`;
-
-  // Detectar empates a puntos Y diferencia de goles → mostrar selector
-  const empatesGD = detectarEmpatesGD(tabla);
   if (empatesGD.length && !cerrado) {
     empatesGD.forEach(par => {
       const key = `${grupo}_${par[0].nombre}_${par[1].nombre}`;
