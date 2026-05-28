@@ -56,7 +56,9 @@
     "neither":       "Ninguno",
     "autoCalc":      "Calculado automáticamente",
     "classifTitle":  "Clasificación según tus predicciones",
-    "tiebreakOrder": "Desempate — arrastra para ordenar"
+    "tiebreakOrder": "Desempate — arrastra para ordenar",
+    "tiebreakNeeded":"Desempate necesario",
+    "tiebreakExplain":"tienen los mismos puntos, diferencia de goles y goles a favor. Elige quién queda mejor clasificado:"
   },
 
   "knockouts": {
@@ -225,7 +227,12 @@
       "auto":        "Auto",
       "open":        "Abierto",
       "closed":      "Cerrado",
-      "saveBtn":     "Guardar fechas"
+      "saveBtn":     "Guardar fechas",
+      "confirmTitle":"¿Guardar estas fechas límite?",
+      "confirmBody": "Una vez guardadas, los jugadores perderán acceso a editar sus predicciones cuando se alcancen estas fechas.",
+      "confirmGroups":"Cierre grupos + especiales",
+      "confirmKO":   "Cierre eliminatorias",
+      "confirmBtn":  "Sí, guardar fechas"
     },
     "payments": {
       "title":       "Configuración de pagos",
@@ -329,6 +336,7 @@
     "pts":           "pts",
     "date":          "Fecha",
     "venue":         "Sede",
-    "page":          "Página"
+    "page":          "Página",
+    "and":           "y"
   }
 }
