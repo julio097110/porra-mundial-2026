@@ -521,16 +521,17 @@ h1, h2, h3 { line-height: 1.2; }
 .group-table { border: 1px solid var(--gp); border-radius: var(--radius-sm); overflow: hidden; margin-top: 8px; }
 .group-table-header {
   display: grid;
-  grid-template-columns: 18px 1fr 26px 26px 26px 26px 32px;
+  grid-template-columns: 18px 1fr 26px 26px 26px 26px 32px 18px;
   background: var(--gm); padding: 5px 9px; gap: 2px;
 }
 .gt-head { font-size: 9px; font-weight: 700; color: #fff; text-align: center; text-transform: uppercase; }
 .gt-head.left { text-align: left; }
 .group-table-row {
   display: grid;
-  grid-template-columns: 18px 1fr 26px 26px 26px 26px 32px;
+  grid-template-columns: 18px 1fr 26px 26px 26px 26px 32px 18px;
   padding: 5px 9px; border-bottom: 1px solid #eef3e8; align-items: center; gap: 2px;
 }
+.gt-tie-icon { font-size: 11px; color: #ba7517; text-align: center; }
 .group-table-row:last-child { border-bottom: none; }
 .group-table-row.qualifies  { background: var(--gg); }
 .gt-pos  { font-size: 11px; font-weight: 700; color: var(--gm); text-align: center; }
