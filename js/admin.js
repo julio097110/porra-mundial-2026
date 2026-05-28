@@ -893,17 +893,50 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar fechas límite
-  window._adminGuardarFechas = async () => {
+  // Guardar fechas límite — con modal de confirmación
+  window._adminGuardarFechas = () => {
+    const fg = document.getElementById('inputFechaGrupos')?.value;
+    const fe = document.getElementById('inputFechaElim')?.value;
+
+    if (!fg || !fe) {
+      window.mostrarToast('⚠️ Introduce ambas fechas', 4000);
+      return;
+    }
+
+    const fgLabel = new Date(fg).toLocaleString(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    const feLabel = new Date(fe).toLocaleString(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    window.appAbrirModal(
+      `📅 ${t('admin.dates.confirmTitle')}`,
+      `<p style="font-size:13px; color:var(--ts); margin-bottom:14px;">${t('admin.dates.confirmBody')}</p>
+       <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+         <div style="display:flex; justify-content:space-between; padding:8px 10px;
+           background:var(--bg2,#f7faf2); border-radius:var(--radius); border:1px solid var(--gp,#dde8cc);">
+           <span style="color:var(--tm);">⚽ ${t('admin.dates.confirmGroups')}</span>
+           <strong>${fgLabel}</strong>
+         </div>
+         <div style="display:flex; justify-content:space-between; padding:8px 10px;
+           background:var(--bg2,#f7faf2); border-radius:var(--radius); border:1px solid var(--gp,#dde8cc);">
+           <span style="color:var(--tm);">⚔️ ${t('admin.dates.confirmKO')}</span>
+           <strong>${feLabel}</strong>
+         </div>
+       </div>`,
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('common.cancel')}</button>
+       <button class="btn btn-primary" onclick="window._adminConfirmarFechas('${fg}','${fe}')">
+         💾 ${t('admin.dates.confirmBtn')}
+       </button>`
+    );
+  };
+
+  window._adminConfirmarFechas = async (fg, fe) => {
     try {
-      const fg = document.getElementById('inputFechaGrupos')?.value;
-      const fe = document.getElementById('inputFechaElim')?.value;
-
-      if (!fg || !fe) {
-        window.mostrarToast('⚠️ Introduce ambas fechas', 4000);
-        return;
-      }
-
+      window.appCerrarModal();
       await setDoc(doc(db, 'config', 'general'), {
         fecha_limite_grupos:        new Date(fg).toISOString(),
         fecha_limite_eliminatorias: new Date(fe).toISOString()
@@ -913,8 +946,10 @@ function registrarHandlers() {
       _config.fecha_limite_eliminatorias = new Date(fe).toISOString();
 
       window.mostrarToast('✅ ' + t('admin.dates.saveBtn'));
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
     } catch (e) {
-      console.error('[guardarFechas]', e);
+      console.error('[confirmarFechas]', e);
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     }
   };
