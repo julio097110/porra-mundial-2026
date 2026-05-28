@@ -56,7 +56,9 @@
     "neither":       "Neither",
     "autoCalc":      "Calculated automatically",
     "classifTitle":  "Standings based on your predictions",
-    "tiebreakOrder": "Tiebreaker — drag to sort"
+    "tiebreakOrder": "Tiebreaker — drag to sort",
+    "tiebreakNeeded":"Tiebreaker needed",
+    "tiebreakExplain":"have the same points, goal difference and goals scored. Choose who finishes higher:"
   },
 
   "knockouts": {
@@ -225,7 +227,12 @@
       "auto":        "Auto",
       "open":        "Open",
       "closed":      "Closed",
-      "saveBtn":     "Save deadlines"
+      "saveBtn":     "Save deadlines",
+      "confirmTitle":"Save these deadlines?",
+      "confirmBody": "Once saved, players will lose access to edit their predictions when these deadlines are reached.",
+      "confirmGroups":"Groups + specials deadline",
+      "confirmKO":   "Knockout deadline",
+      "confirmBtn":  "Yes, save deadlines"
     },
     "payments": {
       "title":       "Payment settings",
@@ -329,6 +336,7 @@
     "pts":           "pts",
     "date":          "Date",
     "venue":         "Venue",
-    "page":          "Page"
+    "page":          "Page",
+    "and":           "and"
   }
 }
