@@ -333,11 +333,13 @@ function renderClasificacionGrupo(grupo, cerrado) {
           <div class="gt-head">E</div>
           <div class="gt-head">P</div>
           <div class="gt-head">Pts</div>
+          <div class="gt-head"></div>
         </div>
   `;
 
   tabla.forEach((eq, i) => {
     const pasa = i < 2;
+    const esEmpate = empatesGD.some(par => par[0].nombre === eq.nombre || par[1].nombre === eq.nombre);
     html += `
       <div class="group-table-row ${pasa ? 'qualifies' : ''}">
         <div class="gt-pos">${i + 1}</div>
@@ -350,6 +352,7 @@ function renderClasificacionGrupo(grupo, cerrado) {
         <div class="gt-val">${eq.e}</div>
         <div class="gt-val">${eq.p}</div>
         <div class="gt-pts">${eq.pts}</div>
+        <div class="gt-tie-icon">${esEmpate && !cerrado ? '⚠' : ''}</div>
       </div>
     `;
   });
@@ -363,16 +366,24 @@ function renderClasificacionGrupo(grupo, cerrado) {
       const key = `${grupo}_${par[0].nombre}_${par[1].nombre}`;
       const seleccionado = _predGrupos._desempates?.[key] || null;
       html += `
-        <div class="tiebreak" style="margin-top:8px;">
-          <div class="tiebreak-label">⚠️ ${par[0].nombre} y ${par[1].nombre} empatan a puntos y goles — ¿en qué orden quedan?</div>
+        <div class="tiebreak" style="margin-top:10px; border:1px solid var(--gold,#e6a817);
+          border-radius:var(--radius); padding:12px 14px; background:var(--gold-pale,#fffbf0);">
+          <div style="font-size:12px; font-weight:600; color:var(--gold-dark,#a07000);
+            margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            ⚠ ${t('myPool.tiebreakNeeded')}
+          </div>
+          <div style="font-size:12px; color:var(--gold-dark,#a07000); margin-bottom:10px;">
+            ${par[0].flag} ${par[0].nombre} ${t('common.and') || 'y'} ${par[1].flag} ${par[1].nombre}
+            ${t('myPool.tiebreakExplain')}
+          </div>
           <div class="tiebreak-opts">
             <button class="tiebreak-btn ${seleccionado === par[0].nombre ? 'selected' : ''}"
               onclick="window._onDesempate('${grupo}','${par[0].nombre}','${par[1].nombre}','${par[0].nombre}')">
-              ${par[0].flag} ${par[0].nombre} primero
+              ${par[0].flag} ${par[0].nombre}
             </button>
             <button class="tiebreak-btn ${seleccionado === par[1].nombre ? 'selected' : ''}"
               onclick="window._onDesempate('${grupo}','${par[0].nombre}','${par[1].nombre}','${par[1].nombre}')">
-              ${par[1].flag} ${par[1].nombre} primero
+              ${par[1].flag} ${par[1].nombre}
             </button>
           </div>
         </div>
