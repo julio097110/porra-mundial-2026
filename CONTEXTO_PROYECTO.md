@@ -1,6 +1,6 @@
 # 🌍 CONTEXTO PROYECTO — Porra Mundial 2026
 > Léeme al inicio de cada nueva conversación para tener el contexto completo.
-> Última actualización: 22 mayo 2026
+> Última actualización: 28 mayo 2026
 
 ---
 
@@ -276,7 +276,7 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 
 ---
 
-## 11. ESTADO ACTUAL (22 mayo 2026)
+## 11. ESTADO ACTUAL (28 mayo 2026)
 
 - ✅ Web publicada y accesible
 - ✅ Firebase Auth + Firestore funcionando
@@ -290,6 +290,8 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 - ✅ Admin puede corregir ortografía de MVP/goleador sin perder el original
 - ✅ Usuario ve su predicción original + aviso de corrección del admin + resultado oficial con ✅/❌
 - ✅ Recálculo de puntos especiales con botón separado
+- ✅ Confirmación modal antes de guardar fechas límite (admin)
+- ✅ Desempates en tabla de grupos: icono ámbar en filas afectadas + aviso mejorado
 - ⚠️ Banderas: no se ven en Windows (decisión de no resolver)
 - ⚠️ API de resultados: solo funciona desde localhost (el admin confirma manualmente)
 
@@ -335,4 +337,5 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 | 2 | 21 may 2026 | `js/prediccion.js` | Bracket de eliminatorias corregido: añadidos los 8 partidos que faltaban en 1/16 (r32_9 a r32_16), 4 en 1/8 (r16_5 a r16_8), 2 en cuartos (qf_3 y qf_4) y la segunda semifinal (sf_2). Canvas ampliado de 920×940px a 1100×1380px. Mapa de dependencias reescrito completo. |
 | 3 | 21 may 2026 | `js/prediccion.js` | Corregido bug en 3er y 4º puesto: el ganador de la semifinal aparecía como los dos equipos del partido. Añadida función `propagarPerdedor()` que propaga el equipo eliminado de cada semifinal al partido de 3er puesto. |
 | 4 | 21 may 2026 | `js/admin.js` | Corregido bug en sección "Especiales" del panel admin: mostraba `[object Promise]` porque `renderEspecialesAdmin` era `async`. Extraída la carga de datos a nueva función `cargarEspeciales()` (integrada en el `Promise.all` de `initAdmin`). `renderEspecialesAdmin` convertida a función síncrona que usa la variable de módulo `_especiales`. |
-| 5 | 22 may 2026 | `js/admin.js`, `js/prediccion.js`, `i18n/es.json`, `i18n/en.json` | Nueva funcionalidad: admin puede introducir MVP oficial y goleador oficial del torneo (`mvp_oficial`, `goleador_oficial` en `config/general`). Botón separado para recalcular puntos especiales. Admin puede corregir ortografía de MVP/goleador de cada jugador escribiendo en `mvp_corregido`/`goleador_corregido` sin tocar el original. Usuario ve su predicción original y, si el admin la corrigió, un aviso con el nombre corregido. Cuando hay resultado oficial, el usuario ve ✅/❌. Corregido bug: `cargarEspeciales` se ejecutaba en paralelo con `cargarUsuarios` haciendo que el nombre del usuario apareciera como `—`. |
+| 6 | 28 may 2026 | `js/admin.js`, `i18n/es.json`, `i18n/en.json` | Cambio 5: confirmación modal antes de guardar fechas límite. `_adminGuardarFechas` ahora abre un modal con las fechas que se van a guardar y pide confirmación explícita antes de escribir en Firestore. El guardado real ocurre en la nueva función `_adminConfirmarFechas`. Nuevas claves i18n: `admin.dates.confirmTitle/Body/Groups/KO/Btn`. |
+| 7 | 28 may 2026 | `js/prediccion.js`, `css/styles.css`, `i18n/es.json`, `i18n/en.json` | Cambio 8: desempates más visibles en la tabla de grupos. La tabla añade una 8ª columna con icono ⚠ en ámbar (`#ba7517`) para los equipos afectados por un empate total. El aviso debajo de la tabla tiene nuevo estilo (borde y fondo ámbar suave) y texto más explicativo usando nuevas claves i18n: `myPool.tiebreakNeeded`, `myPool.tiebreakExplain`, `common.and`. Grid de la tabla actualizado de 7 a 8 columnas en `styles.css`. |
