@@ -483,7 +483,8 @@ function detectarEmpatesGD(tabla) {
     if (
       tabla[i].pts === tabla[i+1].pts &&
       tabla[i].gd  === tabla[i+1].gd  &&
-      tabla[i].gf  === tabla[i+1].gf
+      tabla[i].gf  === tabla[i+1].gf  &&
+      tabla[i].j   > 0
     ) {
       empates.push([tabla[i], tabla[i+1]]);
     }
@@ -1108,7 +1109,7 @@ async function guardarPrediccionesGrupos() {
     const batch = [];
     Object.entries(_predGrupos).forEach(([id, pred]) => {
       if (id === '_desempates') return;
-      if (pred.local === '' || pred.visitante === '') return;
+      if (!id || pred.local == null || pred.visitante == null || pred.local === '' || pred.visitante === '') return;
       batch.push(setDoc(
         doc(db, 'predicciones', `${_app.uid}_${id}`),
         {
