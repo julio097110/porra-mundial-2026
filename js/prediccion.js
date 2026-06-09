@@ -518,7 +518,7 @@ function renderEspecialesTab(contenedor) {
   const esp     = _predEsp;
   const fechaStr = formatFechaLimite(_config.fecha_limite_grupos);
 
-  if (cerrado && esp.bloqueado) {
+  if (cerrado) {
     const mvpOficial = _config.mvp_oficial      || '';
     const golOficial = _config.goleador_oficial || '';
 
