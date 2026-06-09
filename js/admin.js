@@ -634,6 +634,8 @@ function renderEspecialesAdmin() {
             <thead>
               <tr>
                 <th>${t('admin.players.name')}</th>
+                <th>🏆 ${t('specials.champion')}</th>
+                <th>🥈 ${t('specials.runnerUp')}</th>
                 <th>⭐ MVP <span style="font-weight:400; color:var(--tm);">(original)</span></th>
                 <th>⭐ ${t('admin.specials.correctedCol')}</th>
                 <th>⚽ Goleador <span style="font-weight:400; color:var(--tm);">(original)</span></th>
@@ -645,6 +647,8 @@ function renderEspecialesAdmin() {
               ${_especiales.map(e => `
                 <tr>
                   <td><span class="player-name">${e.nombre}</span></td>
+                  <td style="color:var(--tm); font-size:11px;">${e.campeon || '—'}</td>
+                  <td style="color:var(--tm); font-size:11px;">${e.subcampeon || '—'}</td>
                   <td style="color:var(--tm); font-size:11px;">${e.mvp_original || e.mvp || '—'}</td>
                   <td>
                     <input class="form-input" type="text"
