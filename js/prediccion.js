@@ -14,6 +14,7 @@ import {
   PARTIDOS_GRUPOS, GRUPOS, EQUIPOS_48,
   getPartidosPorGrupo
 } from '../data/partidos.js';
+import { PARTIDOS_ELIM } from '../data/partidos_elim.js';
 
 // ── Estado del módulo ─────────────────────────────────────────
 let _app         = null;
