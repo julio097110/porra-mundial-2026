@@ -270,7 +270,7 @@ function renderGrupoDetalle(contenedor) {
               </div>
               ${res ? `
                 <span class="score-label">${t('myPool.scoreReal')}</span>
-                <span class="score-real">${res.local} — ${res.visitante}</span>
+                <span class="score-real">${res.goles_local} — ${res.goles_visitante}</span>
               ` : ''}
             </div>
             <div class="match-team right">
