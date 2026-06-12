@@ -2,7 +2,7 @@
 //  js/resultados.js
 //  Pestaña "Resultados"
 //  - Jugadores: ven resultados confirmados
-//  - Admin: confirma resultados desde la API + botón actualizar equipos
+//  - Admin: confirma resultados manualmente + calcula clasificados
 // ============================================================
 
 import { db } from './firebase-config.js';
@@ -14,15 +14,9 @@ import {
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_GRUPOS, GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
 
-// ── Config ────────────────────────────────────────────────────
-const API_KEY      = '28872f0758074a58859f45fb56bd712b';
-const API_BASE     = 'https://api.football-data.org/v4';
-const WC_2026_ID   = 2000; // ID del Mundial 2026 en football-data.org
-
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
 let _resultados  = {};   // { partidoId: { goles_local, goles_visitante, confirmado } }
-let _apiData     = {};   // datos crudos de la API
 let _unsubscribe = null;
 
 // ── Punto de entrada ─────────────────────────────────────────
@@ -35,7 +29,6 @@ export async function initResultados(app) {
     await cargarResultadosFirestore();
 
     if (_app.esAdmin) {
-      await cargarDatosAPI();
       renderAdmin(contenedor);
     } else {
       renderJugador(contenedor);
@@ -70,7 +63,6 @@ export async function initResultados(app) {
 // ══════════════════════════════════════════════════════════════
 
 function renderJugador(contenedor) {
-  const hoy    = new Date();
   const grupos = agruparPartidosPorFechaYGrupo();
 
   let html = `<div style="margin-top:8px;">`;
@@ -122,26 +114,30 @@ function renderJugador(contenedor) {
 function renderAdmin(contenedor) {
   const hoy = new Date().toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' });
 
+  // Contar grupos completos (3 partidos confirmados)
+  const gruposCompletos = GRUPOS.filter(g => {
+    const partidos = getPartidosPorGrupo(g);
+    return partidos.every(p => _resultados[p.id]?.confirmado);
+  }).length;
+
+  const todosCompletos = gruposCompletos === 12;
+
   let html = `
     <div style="margin-top:8px;">
       <div class="notice">${t('scores.adminOnly')}</div>
 
-      <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-        <button class="btn btn-secondary btn-sm" onclick="window._refreshAPI()">
-          🔄 ${t('scores.refreshBtn')}
+      <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+        <button class="btn btn-primary btn-sm" onclick="window._calcularClasificados()">
+          🏆 Calcular clasificados
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="window._actualizarEquipos()">
-          🏳️ ${t('scores.updateTeams')}
-        </button>
-        <span style="font-size:11px; color:var(--tm); align-self:center;" id="lastUpdateLabel">
-          ${_apiData._lastUpdate
-            ? `${t('scores.lastUpdate')}: ${new Date(_apiData._lastUpdate).toLocaleTimeString()}`
-            : ''}
+        <span style="font-size:11px; color:var(--tm);">
+          ${gruposCompletos}/12 grupos completos
+          ${todosCompletos ? '· <span style="color:var(--gl);">✓ Listo para calcular</span>' : ''}
         </span>
       </div>
   `;
 
-  // Partidos del día con datos de la API
+  // Partidos del día
   const hoyPartidos = obtenerPartidosHoy();
   if (hoyPartidos.length) {
     html += `<div class="group-pill" style="margin-bottom:10px;">📅 Partidos de hoy · ${hoy}</div>`;
@@ -165,11 +161,10 @@ function renderAdmin(contenedor) {
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
   // Handlers
-  window._refreshAPI        = () => refreshAPI();
-  window._actualizarEquipos = () => actualizarEquiposDesdeAPI();
-  window._confirmarRes      = (id) => confirmarResultado(id);
-  window._editarRes         = (id) => editarResultado(id);
-  window._borrarRes         = (id) => confirmarBorrarResultado(id);
+  window._calcularClasificados = () => calcularClasificados();
+  window._confirmarRes         = (id) => confirmarResultado(id);
+  window._editarRes            = (id) => editarResultado(id);
+  window._borrarRes            = (id) => confirmarBorrarResultado(id);
 }
 
 // ── Tarjeta resultado (jugador, solo lectura) ─────────────────
@@ -205,13 +200,11 @@ function renderTarjetaResultado(p, esAdmin, sinResultado = false) {
 
 // ── Tarjeta resultado (admin, con inputs y botón confirmar) ───
 function renderTarjetaAdmin(p) {
-  const res     = _resultados[p.id];
-  const apiRes  = _apiData[p.id];
+  const res        = _resultados[p.id];
   const confirmado = res?.confirmado;
 
-  // Valores a mostrar en los inputs
-  const valL = confirmado ? res.goles_local    : (apiRes?.goles_local    ?? '');
-  const valV = confirmado ? res.goles_visitante: (apiRes?.goles_visitante ?? '');
+  const valL = confirmado ? res.goles_local     : '';
+  const valV = confirmado ? res.goles_visitante : '';
 
   if (confirmado) {
     return `
@@ -248,13 +241,11 @@ function renderTarjetaAdmin(p) {
   }
 
   return `
-    <div class="match-card ${apiRes ? 'pending-api' : ''}">
+    <div class="match-card">
       <div class="match-meta">
         <span>${formatMatchDate(p.fechaUTC)}</span>
         <span>📍 ${p.ciudad}</span>
-        ${apiRes
-          ? `<span class="match-tag api">↻ ${t('scores.apiSuggested')}</span>`
-          : `<span class="match-tag pend">${t('scores.noResult')}</span>`}
+        <span class="match-tag pend">${t('scores.noResult')}</span>
       </div>
       <div class="match-row">
         <div class="match-team">
@@ -277,9 +268,7 @@ function renderTarjetaAdmin(p) {
         </div>
       </div>
       <div class="match-footer">
-        ${apiRes
-          ? `<span style="font-size:11px; color:var(--gm);">↻ football-data.org</span>`
-          : `<span style="font-size:11px; color:var(--tm);">Sin datos de la API</span>`}
+        <span style="font-size:11px; color:var(--tm);">Introducir manualmente</span>
         <button class="btn btn-primary btn-sm" onclick="window._confirmarRes('${p.id}')">
           ✓ ${t('scores.confirmBtn')}
         </button>
@@ -311,13 +300,13 @@ async function confirmarResultado(partidoId) {
     const partido = PARTIDOS_GRUPOS.find(p => p.id === partidoId);
 
     await setDoc(doc(db, 'resultados', partidoId), {
-      partido_id:     partidoId,
-      goles_local:    gl,
-      goles_visitante:gv,
-      confirmado:     true,
-      confirmado_por: _app.uid,
-      confirmado_en:  serverTimestamp(),
-      equipo_local:   partido?.local    || '',
+      partido_id:       partidoId,
+      goles_local:      gl,
+      goles_visitante:  gv,
+      confirmado:       true,
+      confirmado_por:   _app.uid,
+      confirmado_en:    serverTimestamp(),
+      equipo_local:     partido?.local    || '',
       equipo_visitante: partido?.visitante || ''
     });
 
@@ -345,7 +334,9 @@ function editarResultado(partidoId) {
 function confirmarBorrarResultado(partidoId) {
   const partido = PARTIDOS_GRUPOS.find(p => p.id === partidoId);
   const res     = _resultados[partidoId];
-  const titulo  = partido ? `${partido.local} ${res.goles_local} — ${res.goles_visitante} ${partido.visitante}` : partidoId;
+  const titulo  = partido
+    ? `${partido.local} ${res.goles_local} — ${res.goles_visitante} ${partido.visitante}`
+    : partidoId;
 
   window.appAbrirModal(
     '🗑️ Borrar resultado',
@@ -396,172 +387,189 @@ window._ejecutarBorradoRes = async (partidoId) => {
   }
 };
 
-// ── Refresh datos de la API ───────────────────────────────────
-async function refreshAPI() {
-  window.mostrarToast('🔄 Consultando API...');
-  try {
-    await cargarDatosAPI();
-    const c = document.getElementById('resultadosContent');
-    if (c) renderAdmin(c);
-    window.mostrarToast('✅ Datos actualizados');
-  } catch (e) {
-    console.error('[refreshAPI]', e);
-    window.mostrarToast('⚠️ No se pudo conectar con la API', 4000);
-  }
-}
+// ══════════════════════════════════════════════════════════════
+//  CALCULAR CLASIFICADOS — genera bracket_eliminatorias
+// ══════════════════════════════════════════════════════════════
 
-// ── Actualizar equipos clasificados desde la API ──────────────
-async function actualizarEquiposDesdeAPI() {
-  window.mostrarToast('🔄 Actualizando equipos clasificados...');
+async function calcularClasificados() {
+  window.mostrarToast('🔄 Calculando clasificados...');
   try {
-    const res = await fetch(`${API_BASE}/competitions/${WC_2026_ID}/matches?stage=LAST_32`, {
-      headers: { 'X-Auth-Token': API_KEY }
+    // ── 1. Calcular tabla de cada grupo ──────────────────────
+    const tablas = {};
+    GRUPOS.forEach(g => {
+      tablas[g] = calcularTablaGrupo(g);
     });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
 
+    // ── 2. Extraer 1º y 2º de cada grupo ────────────────────
+    const primeros  = {};  // { A: {nombre, flag, grupoCompleto}, ... }
+    const segundos  = {};
+    const terceros  = {};
+
+    GRUPOS.forEach(g => {
+      const tabla         = tablas[g];
+      const partidos      = getPartidosPorGrupo(g);
+      const grupoCompleto = partidos.every(p => _resultados[p.id]?.confirmado);
+
+      primeros[g] = { ...tabla[0], grupoCompleto };
+      segundos[g] = { ...tabla[1], grupoCompleto };
+      terceros[g] = { ...tabla[2], grupoCompleto };
+    });
+
+    // ── 3. Mapeo oficial FIFA — 16 partidos de r32 ──────────
+    // Fuente: Wikipedia 2026 FIFA World Cup knockout stage
+    // Matches 73-88 en orden cronológico
+    // Los 8 partidos con tercero se dejan como null (se asignan manualmente desde admin)
+    const crucesFijos = [
+      // r32_1  Match 73: 2º A vs 2º B
+      { id: 'r32_1',  local: segundos['A'], visitante: segundos['B'] },
+      // r32_2  Match 74: 1º E vs Mejor 3º (A/B/C/D/F) → tercero null
+      { id: 'r32_2',  local: primeros['E'], visitante: null },
+      // r32_3  Match 75: 1º F vs 2º C
+      { id: 'r32_3',  local: primeros['F'], visitante: segundos['C'] },
+      // r32_4  Match 76: 1º C vs 2º F
+      { id: 'r32_4',  local: primeros['C'], visitante: segundos['F'] },
+      // r32_5  Match 77: 1º I vs Mejor 3º (C/D/F/G/H) → tercero null
+      { id: 'r32_5',  local: primeros['I'], visitante: null },
+      // r32_6  Match 78: 2º E vs 2º I
+      { id: 'r32_6',  local: segundos['E'], visitante: segundos['I'] },
+      // r32_7  Match 79: 1º A vs Mejor 3º (C/E/F/H/I) → tercero null
+      { id: 'r32_7',  local: primeros['A'], visitante: null },
+      // r32_8  Match 80: 1º L vs Mejor 3º (E/H/I/J/K) → tercero null
+      { id: 'r32_8',  local: primeros['L'], visitante: null },
+      // r32_9  Match 81: 1º D vs Mejor 3º (B/E/F/I/J) → tercero null
+      { id: 'r32_9',  local: primeros['D'], visitante: null },
+      // r32_10 Match 82: 1º G vs Mejor 3º (A/E/H/I/J) → tercero null
+      { id: 'r32_10', local: primeros['G'], visitante: null },
+      // r32_11 Match 83: 2º K vs 2º L
+      { id: 'r32_11', local: segundos['K'], visitante: segundos['L'] },
+      // r32_12 Match 84: 1º H vs 2º J
+      { id: 'r32_12', local: primeros['H'], visitante: segundos['J'] },
+      // r32_13 Match 85: 1º B vs Mejor 3º (E/F/G/I/J) → tercero null
+      { id: 'r32_13', local: primeros['B'], visitante: null },
+      // r32_14 Match 86: 1º J vs 2º H
+      { id: 'r32_14', local: primeros['J'], visitante: segundos['H'] },
+      // r32_15 Match 87: 1º K vs Mejor 3º (D/E/I/J/L) → tercero null
+      { id: 'r32_15', local: primeros['K'], visitante: null },
+      // r32_16 Match 88: 2º D vs 2º G
+      { id: 'r32_16', local: segundos['D'], visitante: segundos['G'] },
+    ];
+
+    // ── 4. Construir objeto bracket para Firestore ───────────
     const bracket = {};
-    (data.matches || []).forEach(m => {
-      const id = mapearIdPartidoElim(m);
-      if (!id) return;
-      bracket[id] = {
-        equipoLocal:     m.homeTeam?.name     || null,
-        equipoVisitante: m.awayTeam?.name     || null,
-        flagLocal:       equipoAFlag(m.homeTeam?.name) || '',
-        flagVisitante:   equipoAFlag(m.awayTeam?.name) || '',
-        fecha:           formatearFechaCorta(m.utcDate),
-        ciudad:          m.venue || ''
+
+    crucesFijos.forEach(cruce => {
+      const eqL = cruce.local;
+      const eqV = cruce.visitante;
+
+      // Un partido está "confirmado" si los grupos de ambos equipos
+      // están completos. Si algún visitante es null (tercero pendiente),
+      // el partido NO está confirmado hasta que el admin lo asigne.
+      const localConfirmado   = eqL?.grupoCompleto ?? false;
+      const visitanteNulo     = eqV === null;
+      const visitanteConf     = eqV?.grupoCompleto ?? false;
+      const confirmado        = localConfirmado && !visitanteNulo && visitanteConf;
+
+      bracket[cruce.id] = {
+        equipoLocal:        eqL?.nombre    || null,
+        equipoVisitante:    visitanteNulo ? null : (eqV?.nombre || null),
+        flagLocal:          eqL?.flag      || '',
+        flagVisitante:      visitanteNulo ? '' : (eqV?.flag || ''),
+        terceroPendiente:   visitanteNulo,
+        confirmado
       };
     });
+
+    // Preservar asignaciones manuales de terceros que ya existan
+    const snapActual = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
+    if (snapActual.exists()) {
+      const actual = snapActual.data();
+      crucesFijos
+        .filter(c => c.visitante === null)
+        .forEach(c => {
+          const existente = actual[c.id];
+          if (existente?.equipoVisitante) {
+            // Conservar el tercero ya asignado manualmente
+            bracket[c.id].equipoVisitante  = existente.equipoVisitante;
+            bracket[c.id].flagVisitante    = existente.flagVisitante || '';
+            bracket[c.id].terceroPendiente = false;
+            bracket[c.id].confirmado       = bracket[c.id].confirmado || (bracket[c.id].local?.grupoCompleto ?? false);
+          }
+        });
+    }
 
     bracket._lastUpdate = new Date().toISOString();
 
     await setDoc(doc(db, 'config', 'bracket_eliminatorias'), bracket, { merge: true });
-    window.mostrarToast('✅ Equipos actualizados');
+
+    // Feedback al admin con resumen
+    const pendientes = crucesFijos.filter(c => c.visitante === null).length;
+    const msg = pendientes > 0
+      ? `✅ Clasificados calculados · ${pendientes} terceros pendientes de asignar en admin`
+      : '✅ Bracket completo calculado';
+    window.mostrarToast(msg, 5000);
+
+    // Re-renderizar para actualizar el contador
+    const c = document.getElementById('resultadosContent');
+    if (c) renderAdmin(c);
+
   } catch (e) {
-    console.error('[actualizarEquipos]', e);
-    window.mostrarToast('⚠️ No se pudieron actualizar los equipos', 4000);
+    console.error('[calcularClasificados]', e);
+    window.mostrarToast('⚠️ Error al calcular clasificados', 4000);
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-//  API football-data.org
-// ══════════════════════════════════════════════════════════════
+// ── Calcular tabla de un grupo a partir de resultados confirmados
+function calcularTablaGrupo(grupo) {
+  const partidos = getPartidosPorGrupo(grupo);
+  const equiposMap = {};
 
-// ══════════════════════════════════════════════════════════════
-//  API football-data.org
-//  Solo funciona desde localhost — en producción (GitHub Pages)
-//  la API bloquea las peticiones por CORS. El admin debe
-//  actualizar los resultados manualmente desde local.
-// ══════════════════════════════════════════════════════════════
-
-async function cargarDatosAPI() {
-  // Detectar si estamos en producción (GitHub Pages)
-  const esProduccion = window.location.hostname !== 'localhost' &&
-                       window.location.hostname !== '127.0.0.1';
-
-  if (esProduccion) {
-    // En producción no llamamos a la API para evitar el error CORS
-    // Los resultados se confirman manualmente por el admin
-    console.info('[API] Entorno de producción — API deshabilitada por CORS');
-    return;
-  }
-
-  try {
-    // Obtener partidos del Mundial 2026 fase de grupos
-    const res = await fetch(
-      `${API_BASE}/competitions/${WC_2026_ID}/matches?stage=GROUP_STAGE&status=FINISHED`,
-      { headers: { 'X-Auth-Token': API_KEY } }
-    );
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
-
-    ;(data.matches || []).forEach(m => {
-      const id = mapearIdPartido(m);
-      if (!id) return;
-      if (m.score?.fullTime?.home === null) return;
-      _apiData[id] = {
-        goles_local:    m.score.fullTime.home,
-        goles_visitante:m.score.fullTime.away,
-        estado:         m.status
-      };
-    });
-
-    _apiData._lastUpdate = new Date().toISOString();
-  } catch (e) {
-    console.warn('[cargarDatosAPI]', e);
-    // No es fatal — seguimos sin datos de la API
-  }
-}
-
-// ── Mapear nombre de equipo de la API a nuestro ID de partido ─
-function mapearIdPartido(match) {
-  const localAPI = match.homeTeam?.name?.toLowerCase() || '';
-  const visitAPI = match.awayTeam?.name?.toLowerCase()  || '';
-
-  const partido = PARTIDOS_GRUPOS.find(p => {
-    const localNorm = normalizarNombre(p.local);
-    const visitNorm = normalizarNombre(p.visitante);
-    return (
-      (localNorm.includes(localAPI.split(' ')[0]) ||
-       localAPI.includes(localNorm.split(' ')[0])) &&
-      (visitNorm.includes(visitAPI.split(' ')[0]) ||
-       visitAPI.includes(visitNorm.split(' ')[0]))
-    );
+  // Inicializar equipos desde los partidos
+  partidos.forEach(p => {
+    if (!equiposMap[p.local]) {
+      equiposMap[p.local] = { nombre: p.local, flag: p.flagLocal, pts: 0, gf: 0, gc: 0, j: 0 };
+    }
+    if (!equiposMap[p.visitante]) {
+      equiposMap[p.visitante] = { nombre: p.visitante, flag: p.flagVisitante, pts: 0, gf: 0, gc: 0, j: 0 };
+    }
   });
 
-  return partido?.id || null;
-}
+  // Calcular estadísticas con resultados confirmados
+  partidos.forEach(p => {
+    const res = _resultados[p.id];
+    if (!res?.confirmado) return;
 
-function mapearIdPartidoElim(match) {
-  // Los IDs de partidos de eliminatoria vienen del stage de la API
-  const stageMap = {
-    'LAST_32':       'r32',
-    'LAST_16':       'r16',
-    'QUARTER_FINALS':'qf',
-    'SEMI_FINALS':   'sf',
-    'THIRD_PLACE':   'tp',
-    'FINAL':         'final'
-  };
-  const prefix = stageMap[match.stage];
-  if (!prefix) return null;
-  // Usar el matchday como número
-  const num = match.matchday || 1;
-  return `${prefix}_${num}`;
-}
+    const gl = res.goles_local;
+    const gv = res.goles_visitante;
 
-function normalizarNombre(nombre) {
-  return (nombre || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9 ]/g, '');
-}
+    equiposMap[p.local].j++;
+    equiposMap[p.visitante].j++;
+    equiposMap[p.local].gf    += gl;
+    equiposMap[p.local].gc    += gv;
+    equiposMap[p.visitante].gf += gv;
+    equiposMap[p.visitante].gc += gl;
 
-function equipoAFlag(nombre) {
-  if (!nombre) return '';
-  // Importación dinámica para no crear dependencia circular
-  const mapFlags = {
-    'Mexico':'🇲🇽', 'South Africa':'🇿🇦', 'Korea Republic':'🇰🇷', 'Czechia':'🇨🇿',
-    'Canada':'🇨🇦', 'Bosnia and Herzegovina':'🇧🇦', 'Qatar':'🇶🇦', 'Switzerland':'🇨🇭',
-    'Brazil':'🇧🇷', 'Morocco':'🇲🇦', 'Haiti':'🇭🇹', 'Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿',
-    'USA':'🇺🇸', 'Paraguay':'🇵🇾', 'Australia':'🇦🇺', 'Türkiye':'🇹🇷',
-    'Germany':'🇩🇪', 'Curaçao':'🇨🇼', "Ivory Coast":"🇨🇮", 'Ecuador':'🇪🇨',
-    'Netherlands':'🇳🇱', 'Japan':'🇯🇵', 'Sweden':'🇸🇪', 'Tunisia':'🇹🇳',
-    'Belgium':'🇧🇪', 'Egypt':'🇪🇬', 'Iran':'🇮🇷', 'New Zealand':'🇳🇿',
-    'Spain':'🇪🇸', 'Cape Verde':'🇨🇻', 'Saudi Arabia':'🇸🇦', 'Uruguay':'🇺🇾',
-    'France':'🇫🇷', 'Senegal':'🇸🇳', 'Iraq':'🇮🇶', 'Norway':'🇳🇴',
-    'Argentina':'🇦🇷', 'Algeria':'🇩🇿', 'Austria':'🇦🇹', 'Jordan':'🇯🇴',
-    'Portugal':'🇵🇹', 'DR Congo':'🇨🇩', 'Uzbekistan':'🇺🇿', 'Colombia':'🇨🇴',
-    'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Croatia':'🇭🇷', 'Ghana':'🇬🇭', 'Panama':'🇵🇦'
-  };
-  return mapFlags[nombre] || '';
-}
+    if (gl > gv) {
+      equiposMap[p.local].pts    += 3;
+    } else if (gl === gv) {
+      equiposMap[p.local].pts    += 1;
+      equiposMap[p.visitante].pts += 1;
+    } else {
+      equiposMap[p.visitante].pts += 3;
+    }
+  });
 
-function formatearFechaCorta(utcDate) {
-  if (!utcDate) return '—';
-  const d = new Date(utcDate);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  // Ordenar: Pts → GD → GF → nombre (alfabético como desempate provisional)
+  return Object.values(equiposMap).sort((a, b) => {
+    const ptsDiff = b.pts - a.pts;
+    if (ptsDiff !== 0) return ptsDiff;
+    const gdA = a.gf - a.gc;
+    const gdB = b.gf - b.gc;
+    const gdDiff = gdB - gdA;
+    if (gdDiff !== 0) return gdDiff;
+    const gfDiff = b.gf - a.gf;
+    if (gfDiff !== 0) return gfDiff;
+    return a.nombre.localeCompare(b.nombre);
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -570,7 +578,6 @@ function formatearFechaCorta(utcDate) {
 
 async function recalcularPuntos(partidoId, golesLocal, golesVisitante) {
   try {
-    // Obtener todas las predicciones de este partido
     const { query, where, getDocs: gd } = await import(
       'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
     );
@@ -602,8 +609,6 @@ async function recalcularPuntos(partidoId, golesLocal, golesVisitante) {
     });
 
     await Promise.all(batch);
-
-    // Recalcular totales
     await recalcularTotales();
   } catch (e) {
     console.error('[recalcularPuntos]', e);
@@ -615,10 +620,8 @@ function calcularPuntosPartido(pred, golesLocalReal, golesVisitanteReal) {
   const pv = parseInt(pred.visitante);
   if (isNaN(pl) || isNaN(pv)) return 0;
 
-  // Resultado exacto
   if (pl === golesLocalReal && pv === golesVisitanteReal) return 3;
 
-  // Solo ganador/empate
   const signoPred = Math.sign(pl - pv);
   const signoReal = Math.sign(golesLocalReal - golesVisitanteReal);
   if (signoPred === signoReal) return 1;
@@ -670,7 +673,7 @@ function agruparPartidosPorFechaYGrupo() {
 }
 
 function filtrarRecientes(grupos) {
-  const hoy = new Date().toDateString();
+  const hoy  = new Date().toDateString();
   const ayer = new Date(Date.now() - 86400000).toDateString();
   return [
     ...(grupos[hoy]  || []),
