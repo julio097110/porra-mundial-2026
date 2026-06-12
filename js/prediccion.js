@@ -891,7 +891,7 @@ function renderBracketMatch(p, left, top, cerrado, fase) {
   let html = `
     <div class="bracket-match ${locked ? 'lock' : 'edit'} ${fase === 'final' ? 'final' : fase === '3er' ? 'third' : ''}"
       style="position:absolute; left:${left}px; top:${top}px; width:${anchura}px;">
-      <div class="bm-date">📅 ${p.fecha || '—'} · ${p.ciudad || '—'}</div>
+      <div class="bm-date">📅 ${p.fechaUTC ? formatMatchDate(p.fechaUTC) : (p.fecha || '—')} · ${p.ciudad || '—'}</div>
       <div class="bm-team ${claseL}">
         ${flagL ? `<span class="bm-flag">${flagL}</span>` : ''}
         ${typeof eqL === 'string' && eqL.startsWith('<')
@@ -956,6 +956,7 @@ function obtenerPartidos16() {
 
   return cruces.map(c => {
     const datoAPI = _bracket[c.id] || {};
+    const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
     return {
       id:               c.id,
       equipoLocal:      datoAPI.equipoLocal      || null,
@@ -964,6 +965,7 @@ function obtenerPartidos16() {
       flagVisitante:    datoAPI.flagVisitante    || '',
       placeholderLocal:    c.pL,
       placeholderVisitante:c.pV,
+      fechaUTC:  elimData?.fechaUTC || null,   // ← línea NUEVA
       fecha:            datoAPI.fecha            || c.fecha,
       ciudad:           datoAPI.ciudad           || c.ciudad,
       desbloqueado:     true
@@ -1005,9 +1007,11 @@ function obtenerPartidosFase(fase) {
 
   return (fases[fase] || []).map(c => {
     const datoAPI = _bracket[c.id] || {};
+    const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
     const esTercero = c.id === 'tp_1';
     return {
       ...c,
+      fechaUTC:        elimData?.fechaUTC       || null,
       desbloqueado:    true,  // siempre editable
       equipoLocal:     datoAPI.equipoLocal     || (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null,
       equipoVisitante: datoAPI.equipoVisitante || (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null,
