@@ -130,6 +130,9 @@ function renderAdmin(contenedor) {
         <button class="btn btn-primary btn-sm" onclick="window._calcularClasificados()">
           🏆 Calcular clasificados
         </button>
+        <button class="btn btn-danger btn-sm" onclick="window._borrarClasificados()">
+          🗑️ Borrar clasificados
+        </button>
         <span style="font-size:11px; color:var(--tm);">
           ${gruposCompletos}/12 grupos completos
           ${todosCompletos ? '· <span style="color:var(--gl);">✓ Listo para calcular</span>' : ''}
@@ -162,6 +165,7 @@ function renderAdmin(contenedor) {
 
   // Handlers
   window._calcularClasificados = () => calcularClasificados();
+  window._borrarClasificados   = () => borrarClasificados();
   window._confirmarRes         = (id) => confirmarResultado(id);
   window._editarRes            = (id) => editarResultado(id);
   window._borrarRes            = (id) => confirmarBorrarResultado(id);
@@ -470,10 +474,10 @@ async function calcularClasificados() {
       const confirmado        = localConfirmado && !visitanteNulo && visitanteConf;
 
       bracket[cruce.id] = {
-        equipoLocal:        eqL?.nombre    || null,
-        equipoVisitante:    visitanteNulo ? null : (eqV?.nombre || null),
-        flagLocal:          eqL?.flag      || '',
-        flagVisitante:      visitanteNulo ? '' : (eqV?.flag || ''),
+        equipoLocal:        eqL?.grupoCompleto ? (eqL?.nombre || null) : null,
+        equipoVisitante:    visitanteNulo ? null : (eqV?.grupoCompleto ? (eqV?.nombre || null) : null),
+        flagLocal:          eqL?.grupoCompleto ? (eqL?.flag || '') : '',
+        flagVisitante:      visitanteNulo ? '' : (eqV?.grupoCompleto ? (eqV?.flag || '') : ''),
         terceroPendiente:   visitanteNulo,
         confirmado
       };
@@ -517,6 +521,40 @@ async function calcularClasificados() {
     window.mostrarToast('⚠️ Error al calcular clasificados', 4000);
   }
 }
+
+// ── Borrar bracket de clasificados ───────────────────────────
+async function borrarClasificados() {
+  window.appAbrirModal(
+    '🗑️ Borrar clasificados',
+    `<p style="font-size:13px;">¿Seguro que quieres borrar el bracket de eliminatorias?</p>
+     <p style="font-size:12px; color:var(--r); margin-top:8px;">
+       ⚠️ Esto borrará todos los equipos asignados en la Ronda de 32, incluyendo los terceros asignados manualmente.
+     </p>`,
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
+     <button class="btn btn-danger" onclick="window._ejecutarBorradoClasificados()">
+       🗑️ Sí, borrar bracket
+     </button>`
+  );
+}
+
+window._ejecutarBorradoClasificados = async () => {
+  try {
+    window.appCerrarModal();
+    window.mostrarToast('🗑️ Borrando bracket...');
+
+    const { deleteDoc } = await import(
+      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+    );
+    await deleteDoc(doc(db, 'config', 'bracket_eliminatorias'));
+
+    window.mostrarToast('✅ Bracket borrado');
+    const c = document.getElementById('resultadosContent');
+    if (c) renderAdmin(c);
+  } catch (e) {
+    console.error('[borrarClasificados]', e);
+    window.mostrarToast('❌ ' + t('common.error'), 5000);
+  }
+};
 
 // ── Calcular tabla de un grupo a partir de resultados confirmados
 function calcularTablaGrupo(grupo) {
