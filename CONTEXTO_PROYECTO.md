@@ -1,6 +1,6 @@
 # 🌍 CONTEXTO PROYECTO — Porra Mundial 2026
 > Léeme al inicio de cada nueva conversación para tener el contexto completo.
-> Última actualización: 28 mayo 2026
+> Última actualización: 12 junio 2026
 
 ---
 
@@ -83,7 +83,8 @@ porra-mundial-2026/
 │   ├── email.js            ← Envío de emails via EmailJS
 │   └── info.js             ← Lógica de info.html
 ├── data/
-│   └── partidos.js         ← 72 partidos hardcodeados con fechas UTC
+│   ├── partidos.js         ← 72 partidos fase de grupos con fechaUTC correcta (verificada jun 2026)
+│   └── partidos_elim.js    ← 32 partidos eliminatorias con fechaUTC (equipos null, se leen de Firestore)
 └── i18n/
     ├── es.json             ← Todas las cadenas en español
     └── en.json             ← Todas las cadenas en inglés
@@ -239,7 +240,7 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 
 - **Login por username** — falla en producción con `Missing or insufficient permissions`. Por ahora los jugadores entran con email completo. Se intentó implementar login por username pero se revirtió. No se considera un bug urgente.
 - **Banderas no se ven en Windows** — emojis Unicode no soportados en Windows. Twemoji se intentó implementar pero se eliminó porque rompía la página en producción. No se va a reintentar.
-- **API football-data solo en localhost** — el admin confirma resultados manualmente desde la vista admin. El botón "Actualizar API" está deshabilitado en producción.
+- **API football-data solo en localhost** — CORS bloquea las peticiones desde GitHub Pages. Ver sección 16 para diagnóstico completo y opciones de resolución.
 - **Índices de Firestore** — se crean bajo demanda al navegar la app y seguir los enlaces de error en la consola del navegador.
 
 ### ✅ Bugs resueltos
@@ -251,6 +252,8 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 - Ganador de semifinal aparecía tanto en la final como en el 3er/4º puesto — corregido propagando el perdedor
 - Sección "Especiales" del panel admin mostraba `[object Promise]` — corregido convirtiendo `renderEspecialesAdmin` en función síncrona
 - `cargarEspeciales` se ejecutaba en paralelo con `cargarUsuarios` y el nombre de usuario aparecía como `—` — corregido ejecutándola después del `Promise.all`
+- Resultado real mostraba "undefined — undefined" en "Mi porra" — `prediccion.js` usaba `res.local`/`res.visitante` en vez de `res.goles_local`/`res.goles_visitante`
+- Fechas de partidos de grupos mostraban +1h (y Australia-Türkiye con error mayor) — todas las `fechaUTC` de `partidos.js` corregidas con fuente oficial FIFA
 
 ---
 
@@ -276,7 +279,7 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 
 ---
 
-## 11. ESTADO ACTUAL (28 mayo 2026)
+## 11. ESTADO ACTUAL (12 junio 2026)
 
 - ✅ Web publicada y accesible
 - ✅ Firebase Auth + Firestore funcionando
@@ -292,8 +295,13 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 - ✅ Recálculo de puntos especiales con botón separado
 - ✅ Confirmación modal antes de guardar fechas límite (admin)
 - ✅ Desempates en tabla de grupos: icono ámbar en filas afectadas + aviso mejorado
+- ✅ Resultado real de partidos se muestra correctamente en "Mi porra" (goles_local/goles_visitante)
+- ✅ Fechas de los 72 partidos de grupos corregidas con fuente oficial FIFA (kickoffclock.com + Al Jazeera)
+- ✅ Nuevo archivo data/partidos_elim.js con 32 partidos de eliminatorias y fechaUTC oficial
+- ✅ prediccion.js importa partidos_elim.js y muestra hora correcta en el bracket de eliminatorias
 - ⚠️ Banderas: no se ven en Windows (decisión de no resolver)
-- ⚠️ API de resultados: solo funciona desde localhost (el admin confirma manualmente)
+- ⚠️ API de resultados: solo funciona desde localhost — ver sección 16 para plan de resolución
+- 🔲 Pendiente: integrar eliminatorias en pestaña Resultados (Parte 3)
 
 ---
 
@@ -339,3 +347,36 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 | 4 | 21 may 2026 | `js/admin.js` | Corregido bug en sección "Especiales" del panel admin: mostraba `[object Promise]` porque `renderEspecialesAdmin` era `async`. Extraída la carga de datos a nueva función `cargarEspeciales()` (integrada en el `Promise.all` de `initAdmin`). `renderEspecialesAdmin` convertida a función síncrona que usa la variable de módulo `_especiales`. |
 | 6 | 28 may 2026 | `js/admin.js`, `i18n/es.json`, `i18n/en.json` | Cambio 5: confirmación modal antes de guardar fechas límite. `_adminGuardarFechas` ahora abre un modal con las fechas que se van a guardar y pide confirmación explícita antes de escribir en Firestore. El guardado real ocurre en la nueva función `_adminConfirmarFechas`. Nuevas claves i18n: `admin.dates.confirmTitle/Body/Groups/KO/Btn`. |
 | 7 | 28 may 2026 | `js/prediccion.js`, `css/styles.css`, `i18n/es.json`, `i18n/en.json` | Cambio 8: desempates más visibles en la tabla de grupos. La tabla añade una 8ª columna con icono ⚠ en ámbar (`#ba7517`) para los equipos afectados por un empate total. El aviso debajo de la tabla tiene nuevo estilo (borde y fondo ámbar suave) y texto más explicativo usando nuevas claves i18n: `myPool.tiebreakNeeded`, `myPool.tiebreakExplain`, `common.and`. Grid de la tabla actualizado de 7 a 8 columnas en `styles.css`. |
+| 8 | 12 jun 2026 | `js/prediccion.js` | Bug fix: resultado real mostraba "undefined — undefined". Corregido `res.local`/`res.visitante` → `res.goles_local`/`res.goles_visitante` en la línea de display del marcador real (línea ~273). |
+| 9 | 12 jun 2026 | `data/partidos.js` | Bug fix: todas las `fechaUTC` de los 72 partidos de grupos estaban 1 hora adelantadas (Australia-Türkiye tenía un error mayor). Corregidas con fuente oficial FIFA verificada en kickoffclock.com y Al Jazeera. |
+| 10 | 12 jun 2026 | `data/partidos_elim.js` *(nuevo)* | Creado archivo con los 32 partidos de eliminatorias (R32×16, R16×8, QF×4, SF×2, 3er×1, Final×1). Solo contiene datos estáticos: `id`, `ronda`, `fechaUTC`, `sede`, `ciudad`, `pais`. Los equipos siguen siendo `null` y se leen de Firestore (`config/bracket_eliminatorias`). |
+| 11 | 12 jun 2026 | `js/prediccion.js` | Integración de `partidos_elim.js`: añadido import de `PARTIDOS_ELIM`. `obtenerPartidos16()` y `obtenerPartidosFase()` enriquecen cada partido con `fechaUTC` del nuevo archivo. `renderBracketMatch()` usa `formatMatchDate(p.fechaUTC)` para mostrar la hora correcta en el bracket. |
+
+---
+
+## 16. PROBLEMA API FOOTBALL-DATA — DIAGNÓSTICO Y OPCIONES
+
+### Situación actual
+La app usa `football-data.org` para obtener resultados automáticamente. Funciona en localhost pero **falla en producción (GitHub Pages)** por restricciones CORS — el servidor de la API no permite peticiones desde dominios que no sean localhost.
+
+El botón "🔄 Actualizar API" en la vista admin llama a `cargarDatosAPI()` en `resultados.js`, que hace un `fetch` directo al endpoint:
+```
+https://api.football-data.org/v4/competitions/2000/matches?stage=GROUP_STAGE&status=FINISHED
+```
+
+### Problemas identificados
+1. **CORS** — football-data.org bloquea peticiones desde GitHub Pages. Es la causa principal del fallo.
+2. **ID del Mundial** — `WC_2026_ID = 2000` puede ser incorrecto. El 2000 era el Mundial 2022. El Mundial 2026 puede tener un ID diferente o no estar disponible en el plan gratuito.
+3. **Mapeo de nombres** — `mapearIdPartido()` hace matching por nombre entre la API y `partidos.js`. Nombres como "Mexico" vs "México" o "South Korea" vs "Corea del Sur" pueden no coincidir.
+
+### Opciones de solución (a evaluar en próximo chat)
+**A — Proxy serverless (recomendada):** crear una Cloud Function o Vercel/Netlify Function que haga la llamada a la API desde el servidor y devuelva los datos. Elimina el problema CORS completamente.
+
+**B — Abandonar la API y confirmar siempre manualmente:** el admin ya tiene el flujo manual funcionando. La API solo era un atajo. Si los partidos son pocos al día, confirmar manualmente es viable durante todo el torneo.
+
+**C — Buscar otra API con CORS abierto:** algunas APIs de fútbol permiten peticiones desde el navegador. Requiere investigar alternativas (api-football.com, transfermarkt unofficial...).
+
+**D — Usar un CORS proxy público:** servicios como `corsproxy.io` o `allorigins.win` actúan de intermediario. Solución frágil y no recomendada para producción.
+
+### Decisión pendiente
+El admin confirma resultados manualmente sin problemas. La API es una mejora de comodidad, no una funcionalidad crítica. Se puede abordar cuando el torneo esté más avanzado o entre la fase de grupos y eliminatorias.
