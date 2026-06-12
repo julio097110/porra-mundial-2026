@@ -1,7 +1,8 @@
 // ============================================================
 //  js/admin.js
 //  Panel de administración
-//  Secciones: resumen, jugadores, fechas, pagos, emails, info
+//  Secciones: resumen, jugadores, predicciones, fechas, pagos,
+//             emails, info, especiales, bracket
 // ============================================================
 
 import { db } from './firebase-config.js';
@@ -16,6 +17,7 @@ import {
   verificarUsernameDisponible, marcarPago,
   eliminarUsuarioFirestore, obtenerTodosUsuarios
 } from './auth.js';
+import { GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
@@ -24,6 +26,8 @@ let _usuarios    = [];
 let _config      = {};
 let _emails      = [];
 let _especiales  = [];
+let _bracket     = {};   // config/bracket_eliminatorias
+let _resultadosGrupos = {}; // resultados confirmados para saber qué grupos están completos
 let _paginaJug   = 1;
 const POR_PAGINA = 20;
 
@@ -41,7 +45,9 @@ export async function initAdmin(app) {
     await Promise.all([
       cargarUsuarios(),
       cargarConfig(),
-      cargarEmailLog()
+      cargarEmailLog(),
+      cargarBracket(),
+      cargarResultadosGrupos()
     ]);
     await cargarEspeciales(); // necesita _usuarios ya cargado
     renderAdmin(contenedor);
@@ -77,6 +83,8 @@ function renderAdmin(contenedor) {
         ${menuItem('emails',       '📧', t('admin.emails.title'))}
         ${menuItem('info',         '🌐', t('admin.infoPage.title'))}
         ${menuItem('especiales',   '⭐', t('admin.specials.title'))}
+        ${menuItem('bracket',      '🏆', 'Bracket',
+          Object.values(_bracket).filter(p => p?.terceroPendiente).length || 0)}
       </div>
 
       <!-- Contenido -->
@@ -121,6 +129,7 @@ function renderSeccion() {
     case 'emails':        return renderEmails();
     case 'info':          return renderInfoPage();
     case 'especiales':    return renderEspecialesAdmin();
+    case 'bracket':       return renderBracketAdmin();
     default:              return renderResumen();
   }
 }
@@ -681,6 +690,158 @@ function renderEspecialesAdmin() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  BRACKET — asignación manual de terceros clasificados
+// ══════════════════════════════════════════════════════════════
+
+function renderBracketAdmin() {
+  // Los 8 partidos de r32 que requieren un tercer clasificado
+  const partidosConTercero = [
+    { id: 'r32_2',  local: '1º Grupo E', desc: 'Mejor 3º (A/B/C/D/F)',  grupos: ['A','B','C','D','F'] },
+    { id: 'r32_5',  local: '1º Grupo I', desc: 'Mejor 3º (C/D/F/G/H)',  grupos: ['C','D','F','G','H'] },
+    { id: 'r32_7',  local: '1º Grupo A', desc: 'Mejor 3º (C/E/F/H/I)',  grupos: ['C','E','F','H','I'] },
+    { id: 'r32_8',  local: '1º Grupo L', desc: 'Mejor 3º (E/H/I/J/K)',  grupos: ['E','H','I','J','K'] },
+    { id: 'r32_9',  local: '1º Grupo D', desc: 'Mejor 3º (B/E/F/I/J)',  grupos: ['B','E','F','I','J'] },
+    { id: 'r32_10', local: '1º Grupo G', desc: 'Mejor 3º (A/E/H/I/J)',  grupos: ['A','E','H','I','J'] },
+    { id: 'r32_13', local: '1º Grupo B', desc: 'Mejor 3º (E/F/G/I/J)',  grupos: ['E','F','G','I','J'] },
+    { id: 'r32_15', local: '1º Grupo K', desc: 'Mejor 3º (D/E/I/J/L)',  grupos: ['D','E','I','J','L'] },
+  ];
+
+  // Calcular qué terceros están disponibles (grupo con 3 partidos confirmados)
+  const tercerosDisponibles = {};
+  GRUPOS.forEach(g => {
+    const partidos      = getPartidosPorGrupo(g);
+    const grupoCompleto = partidos.every(p => _resultadosGrupos[p.id]?.confirmado);
+    const tabla         = calcularTablaGrupoAdmin(g);
+    tercerosDisponibles[g] = {
+      nombre:   tabla[2]?.nombre || null,
+      flag:     tabla[2]?.flag   || '',
+      completo: grupoCompleto
+    };
+  });
+
+  const pendientes = partidosConTercero.filter(p => _bracket[p.id]?.terceroPendiente !== false && !_bracket[p.id]?.equipoVisitante).length;
+
+  let html = `
+    <div>
+      <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:6px;">
+        🏆 Bracket — Terceros clasificados
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+        Asigna manualmente qué tercer clasificado juega cada partido de la Ronda de 32.
+        Solo aparecen los grupos cuyos 3 partidos están confirmados.
+      </div>
+
+      ${pendientes > 0 ? `
+        <div class="notice warn" style="margin-bottom:14px;">
+          ⚠️ <strong>${pendientes} partido${pendientes > 1 ? 's' : ''} pendiente${pendientes > 1 ? 's' : ''}</strong> de asignar tercero
+        </div>` : `
+        <div class="notice" style="margin-bottom:14px; background:var(--gl-pale,#f0f7e8); border-color:var(--gl);">
+          ✅ Todos los terceros asignados
+        </div>`}
+
+      <div class="card">
+        <div class="card-body" style="display:flex; flex-direction:column; gap:14px;">
+  `;
+
+  partidosConTercero.forEach(p => {
+    const actual        = _bracket[p.id];
+    const equipoActual  = actual?.equipoVisitante || '';
+    const flagActual    = actual?.flagVisitante   || '';
+    const pendiente     = !equipoActual;
+
+    // Opciones del select: solo terceros de grupos elegibles Y completos
+    const opciones = p.grupos.map(g => {
+      const tercero = tercerosDisponibles[g];
+      if (!tercero.nombre) return null;
+      const selected = equipoActual === tercero.nombre ? 'selected' : '';
+      const disabled = !tercero.completo ? 'disabled' : '';
+      const label    = tercero.completo
+        ? `${tercero.flag} ${tercero.nombre} (3º Grupo ${g})`
+        : `⏳ Grupo ${g} incompleto`;
+      return `<option value="${tercero.nombre}|${tercero.flag}|${g}" ${selected} ${disabled}>${label}</option>`;
+    }).filter(Boolean);
+
+    html += `
+      <div style="padding:12px; border:1px solid ${pendiente ? 'var(--gold,#e6a817)' : 'var(--gp,#dde8cc)'};
+        border-radius:var(--radius); background:${pendiente ? 'var(--gold-pale,#fffbf0)' : '#fff'};">
+        <div style="font-size:11px; font-weight:700; color:var(--tm); margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px;">
+          ${p.id.replace('r32_', 'Partido ')} · ${pendiente ? '⚠️ Pendiente' : '✅ Asignado'}
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div style="font-size:13px; font-weight:600; color:var(--gd); min-width:120px;">
+            ${actual?.equipoLocal
+              ? `${actual.flagLocal || ''} ${actual.equipoLocal}`
+              : `<span style="color:var(--tm);">${p.local}</span>`}
+          </div>
+          <span style="color:var(--tm); font-size:12px;">vs</span>
+          <div style="flex:1; min-width:180px;">
+            <select id="sel_${p.id}" class="form-input form-select" style="font-size:12px; padding:6px 8px;">
+              <option value="">— ${p.desc} —</option>
+              ${opciones.join('')}
+            </select>
+            ${equipoActual ? `
+              <div style="font-size:11px; color:var(--gl); margin-top:4px;">
+                Actual: ${flagActual} ${equipoActual}
+              </div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="window._adminGuardarTerceros()">
+          💾 Guardar terceros
+        </button>
+        <button class="btn btn-secondary" onclick="window._adminRecargarBracket()">
+          🔄 Recargar bracket
+        </button>
+      </div>
+    </div>`;
+
+  return html;
+}
+
+// ── Calcular tabla de un grupo para obtener el tercero ────────
+function calcularTablaGrupoAdmin(grupo) {
+  const partidos = getPartidosPorGrupo(grupo);
+  const equiposMap = {};
+
+  partidos.forEach(p => {
+    if (!equiposMap[p.local])     equiposMap[p.local]     = { nombre: p.local,     flag: p.flagLocal,     pts: 0, gf: 0, gc: 0 };
+    if (!equiposMap[p.visitante]) equiposMap[p.visitante] = { nombre: p.visitante, flag: p.flagVisitante, pts: 0, gf: 0, gc: 0 };
+  });
+
+  partidos.forEach(p => {
+    const res = _resultadosGrupos[p.id];
+    if (!res?.confirmado) return;
+    const gl = res.goles_local;
+    const gv = res.goles_visitante;
+    equiposMap[p.local].gf     += gl;
+    equiposMap[p.local].gc     += gv;
+    equiposMap[p.visitante].gf += gv;
+    equiposMap[p.visitante].gc += gl;
+    if (gl > gv)       equiposMap[p.local].pts     += 3;
+    else if (gl === gv){ equiposMap[p.local].pts    += 1; equiposMap[p.visitante].pts += 1; }
+    else               equiposMap[p.visitante].pts  += 3;
+  });
+
+  return Object.values(equiposMap).sort((a, b) => {
+    const ptsDiff = b.pts - a.pts;
+    if (ptsDiff !== 0) return ptsDiff;
+    const gdDiff  = (b.gf - b.gc) - (a.gf - a.gc);
+    if (gdDiff !== 0) return gdDiff;
+    const gfDiff  = b.gf - a.gf;
+    if (gfDiff !== 0) return gfDiff;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 //  MODAL AÑADIR / EDITAR JUGADOR
 // ══════════════════════════════════════════════════════════════
 
@@ -1185,6 +1346,62 @@ function registrarHandlers() {
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     }
   };
+
+  // ── Guardar terceros del bracket ──────────────────────────
+  window._adminGuardarTerceros = async () => {
+    try {
+      window.mostrarToast('💾 Guardando terceros...');
+
+      const partidosConTercero = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
+      const updates = {};
+      let cambios = 0;
+
+      partidosConTercero.forEach(id => {
+        const sel = document.getElementById(`sel_${id}`);
+        if (!sel || !sel.value) return;
+
+        const [nombre, flag] = sel.value.split('|');
+        if (!nombre) return;
+
+        updates[`${id}.equipoVisitante`]  = nombre;
+        updates[`${id}.flagVisitante`]    = flag || '';
+        updates[`${id}.terceroPendiente`] = false;
+        updates[`${id}.confirmado`]       = true;
+
+        // Actualizar cache local
+        if (!_bracket[id]) _bracket[id] = {};
+        _bracket[id].equipoVisitante  = nombre;
+        _bracket[id].flagVisitante    = flag || '';
+        _bracket[id].terceroPendiente = false;
+        _bracket[id].confirmado       = true;
+        cambios++;
+      });
+
+      if (cambios === 0) {
+        window.mostrarToast('⚠️ No hay cambios que guardar', 3000);
+        return;
+      }
+
+      await setDoc(doc(db, 'config', 'bracket_eliminatorias'), updates, { merge: true });
+
+      window.mostrarToast(`✅ ${cambios} tercero${cambios > 1 ? 's' : ''} guardado${cambios > 1 ? 's' : ''}`);
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+
+    } catch (e) {
+      console.error('[guardarTerceros]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  // ── Recargar bracket desde Firestore ─────────────────────
+  window._adminRecargarBracket = async () => {
+    window.mostrarToast('🔄 Recargando...');
+    await Promise.all([cargarBracket(), cargarResultadosGrupos()]);
+    document.getElementById('adminSeccion').innerHTML = renderSeccion();
+    registrarHandlers();
+    window.mostrarToast('✅ Bracket actualizado');
+  };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1249,6 +1466,25 @@ async function cargarEspeciales() {
     });
   } catch (e) {
     _especiales = [];
+  }
+}
+
+async function cargarBracket() {
+  try {
+    const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
+    _bracket = snap.exists() ? snap.data() : {};
+  } catch (e) {
+    _bracket = {};
+  }
+}
+
+async function cargarResultadosGrupos() {
+  try {
+    const snap = await getDocs(collection(db, 'resultados'));
+    _resultadosGrupos = {};
+    snap.forEach(d => { _resultadosGrupos[d.id] = d.data(); });
+  } catch (e) {
+    _resultadosGrupos = {};
   }
 }
 
