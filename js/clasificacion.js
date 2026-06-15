@@ -6,6 +6,8 @@
 //    visual (salto puro de números) y los premios de las posiciones
 //    "absorbidas" por el empate se suman y reparten entre los
 //    pagadores empatados.
+//  - Jugadores que no han pagado: fila destacada en rojo (clase
+//    "unpaid", prioridad sobre "me"/"top3") y etiqueta junto al nombre.
 //  - Criterios de puntuación al final
 //  - Escucha cambios en tiempo real
 // ============================================================
@@ -320,7 +322,11 @@ function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
   const lider    = _ranking[0]?.total || 0;
   const diff     = jugador.total - lider;
   const diffStr  = pos === 1 ? '—' : diff.toString();
-  const rowClass = jugador.esYo ? 'me' : '';
+  const rowClass = [
+    jugador.esYo ? 'me' : '',
+    pos <= 3 ? 'top3' : '',
+    !jugador.pagado ? 'unpaid' : ''
+  ].filter(Boolean).join(' ');
 
   let posClass = '';
   if (pos === 1)      posClass = 'gold';
@@ -347,10 +353,11 @@ function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
   const medallaEmoji = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '';
 
   return `
-    <div class="standings-row ${rowClass} ${pos <= 3 ? 'top3' : ''}">
+    <div class="standings-row ${rowClass}">
       <div class="s-pos ${posClass}">${pos}</div>
       <div class="s-name">
         <span class="s-name-text">${medallaEmoji ? medallaEmoji + ' ' : ''}${jugador.nombre}</span>
+        ${!jugador.pagado ? `<span class="s-unpaid-tag">(${t('standings.unpaid')})</span>` : ''}
         ${jugador.esYo ? `<span class="s-you">${t('standings.you')}</span>` : ''}
       </div>
       <div class="s-pts">${jugador.total}</div>
