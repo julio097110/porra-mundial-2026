@@ -122,6 +122,7 @@
     "points":        "Pts",
     "diff":          "Dif.",
     "you":           "tú",
+    "unpaid":        "sin pago",
     "criteriaTitle": "Criterios de puntuación",
     "criteria": {
       "groupWinner":    "Ganador / empate acertado (grupos)",
