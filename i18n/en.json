@@ -122,6 +122,7 @@
     "points":        "Pts",
     "diff":          "Diff.",
     "you":           "you",
+    "unpaid":        "unpaid",
     "criteriaTitle": "Scoring criteria",
     "criteria": {
       "groupWinner":    "Correct winner / draw (groups)",
