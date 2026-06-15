@@ -2,6 +2,10 @@
 //  js/clasificacion.js
 //  Pestaña "Clasificación"
 //  - Ranking de jugadores con puntos y premios
+//  - Soporta empates: jugadores con el mismo total comparten posición
+//    visual (salto puro de números) y los premios de las posiciones
+//    "absorbidas" por el empate se suman y reparten entre los
+//    pagadores empatados.
 //  - Criterios de puntuación al final
 //  - Escucha cambios en tiempo real
 // ============================================================
@@ -15,7 +19,7 @@ import { t } from './i18n.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
-let _ranking     = [];    // [{ uid, nombre, total, pagina }]
+let _ranking     = [];    // [{ uid, nombre, total, pagado, esYo }]
 let _config      = {};    // config general (bote_total)
 let _paginaActual= 1;
 const POR_PAGINA = 20;
@@ -99,8 +103,34 @@ async function cargarRanking() {
   }
 }
 
+// ── Calcula la posición visual de cada jugador (con saltos por empate) ──
+// Devuelve un Map: uid → posición visual (1-indexed)
+// Si hay 2 jugadores empatados en posición 1, ambos reciben pos=1 y el
+// siguiente jugador recibe pos=3 (salto puro de números).
+function calcularPosicionesVisuales() {
+  const posiciones = new Map();
+  let pos = 1;
+
+  for (let i = 0; i < _ranking.length; i++) {
+    if (i > 0 && _ranking[i].total === _ranking[i - 1].total) {
+      // Mismo total que el anterior → misma posición
+      posiciones.set(_ranking[i].uid, posiciones.get(_ranking[i - 1].uid));
+    } else {
+      posiciones.set(_ranking[i].uid, pos);
+    }
+    pos++;
+  }
+
+  return posiciones;
+}
+
 // ── Calcula a qué jugador corresponde cada premio (solo pagadores, con cascada) ──
-// Devuelve un Map: uid → { puesto: 1|2|3, importe: number }
+// Tiene en cuenta empates: si 2+ jugadores comparten posición visual y esa
+// posición cae dentro de las 3 premiadas, los importes de las posiciones
+// "absorbidas" por el grupo se suman y reparten a partes iguales entre los
+// pagadores de ese grupo. Si ningún jugador del grupo ha pagado, esas
+// posiciones de premio se liberan hacia el siguiente grupo (cascada).
+// Devuelve un Map: uid → { puesto: number, importe: number }
 function calcularPremios(bote) {
   if (!bote) return new Map();
 
@@ -110,19 +140,51 @@ function calcularPremios(bote) {
     Math.round(bote * 0.10)
   ];
 
-  // Recorrer el ranking en orden y asignar premios solo a pagadores
   const premios = new Map();
-  let puestosPremio = 0;
+  let puestosPremio = 0; // nº de posiciones de premio (0,1,2 → 1º,2º,3º) ya consumidas
+  let i = 0;
 
-  for (const jugador of _ranking) {
-    if (puestosPremio >= 3) break;
-    if (jugador.pagado) {
-      premios.set(jugador.uid, {
-        puesto:  puestosPremio + 1,
-        importe: importes[puestosPremio]
-      });
-      puestosPremio++;
+  while (i < _ranking.length && puestosPremio < 3) {
+    // Identificar el grupo de empate que comienza en i
+    let j = i;
+    while (j + 1 < _ranking.length && _ranking[j + 1].total === _ranking[i].total) {
+      j++;
     }
+    const grupo = _ranking.slice(i, j + 1);
+    const tamanoGrupo = grupo.length;
+
+    // Cuántas posiciones de premio "ocupa" este grupo (sin pasarse de 3)
+    const posicionesDisponibles = 3 - puestosPremio;
+    const posicionesOcupadas = Math.min(tamanoGrupo, posicionesDisponibles);
+
+    if (posicionesOcupadas > 0) {
+      // Suma de los importes de las posiciones ocupadas por este grupo
+      let sumaImporte = 0;
+      for (let k = 0; k < posicionesOcupadas; k++) {
+        sumaImporte += importes[puestosPremio + k];
+      }
+
+      // Pagadores dentro del grupo
+      const pagadores = grupo.filter(j2 => j2.pagado);
+
+      if (pagadores.length > 0) {
+        const importePorCabeza = Math.round(sumaImporte / pagadores.length);
+        const puestoVisual = puestosPremio + 1; // 1-indexed, posición más alta del grupo
+        pagadores.forEach(jugador => {
+          premios.set(jugador.uid, {
+            puesto:  puestoVisual,
+            importe: importePorCabeza
+          });
+        });
+      }
+      // Si no hay pagadores en el grupo, las posiciones quedan sin asignar
+      // y se "liberan" hacia el siguiente grupo (cascada natural, ya que
+      // puestosPremio avanza igualmente).
+
+      puestosPremio += posicionesOcupadas;
+    }
+
+    i = j + 1;
   }
 
   return premios;
@@ -132,6 +194,7 @@ function calcularPremios(bote) {
 function renderClasificacion(contenedor) {
   const bote    = _config.bote_total || 0;
   const premios = calcularPremios(bote);
+  const posiciones = calcularPosicionesVisuales();
 
   // Importes para mostrar en la tarjeta resumen
   const p1 = bote ? Math.round(bote * 0.65) : null;
@@ -139,7 +202,8 @@ function renderClasificacion(contenedor) {
   const p3 = bote ? Math.round(bote * 0.10) : null;
 
   // Encontrar posición del usuario actual
-  const miPos = _ranking.findIndex(r => r.uid === _app.uid) + 1;
+  const miIndex = _ranking.findIndex(r => r.uid === _app.uid);
+  const miPos = miIndex >= 0 ? posiciones.get(_app.uid) : 0;
 
   // Paginación
   const totalPags  = Math.ceil(_ranking.length / POR_PAGINA);
@@ -191,8 +255,8 @@ function renderClasificacion(contenedor) {
   }
 
   // Si el usuario no está en la página visible, mostrar su posición arriba
-  if (!usuarioEnPagina && miPos > 0) {
-    const yo = _ranking[miPos - 1];
+  if (!usuarioEnPagina && miIndex >= 0) {
+    const yo = _ranking[miIndex];
     html += renderFilaStandings(yo, miPos, premios, bote, true);
     html += `<div style="text-align:center; font-size:11px; color:var(--tm); margin:4px 0 10px;">· · · tu posición · · ·</div>`;
   }
@@ -208,8 +272,8 @@ function renderClasificacion(contenedor) {
         ${bote ? `<div class="sh sh-prize" style="text-align:right;">${t('standings.prizeCol')}</div>` : ''}
       </div>`;
 
-  pagina.forEach((jugador, i) => {
-    const pos = inicio + i + 1;
+  pagina.forEach((jugador) => {
+    const pos = posiciones.get(jugador.uid);
     html += renderFilaStandings(jugador, pos, premios, bote, false);
   });
 
@@ -249,6 +313,7 @@ function renderClasificacion(contenedor) {
 }
 
 // ── Fila de la tabla de standings ────────────────────────────
+// pos: posición visual del jugador (puede repetirse entre filas si hay empate)
 // premios: Map { uid → { puesto, importe } } generado por calcularPremios()
 // bote: número total (0 si no hay bote)
 function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
@@ -268,7 +333,8 @@ function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
     const premio = premios.get(jugador.uid);
     if (premio) {
       const clases = ['prize-1', 'prize-2', 'prize-3'];
-      premioHtml = `<div class="s-prize ${clases[premio.puesto - 1]}">${premio.importe.toLocaleString()} NOK</div>`;
+      const claseIdx = Math.min(premio.puesto, 3) - 1;
+      premioHtml = `<div class="s-prize ${clases[claseIdx]}">${premio.importe.toLocaleString()} NOK</div>`;
     } else if (!jugador.pagado) {
       // No ha pagado — se indica claramente
       premioHtml = `<div class="s-prize prize-none" title="No ha pagado">sin pago</div>`;
