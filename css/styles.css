@@ -573,6 +573,14 @@ h1, h2, h3 { line-height: 1.2; }
 .standings-row:last-child { border-bottom: none; }
 .standings-row.me   { background: var(--gg); }
 .standings-row.top3 { background: #fdfcf0; }
+.standings-row.unpaid {
+  background: #fce0db;
+  border-bottom: 1px solid #f5c6c2;
+}
+.standings-row.unpaid .s-name,
+.standings-row.unpaid .s-name-text {
+  color: var(--r);
+}
 
 /* Posición: ancho fijo, nunca se encoge */
 .s-pos {
@@ -598,6 +606,10 @@ h1, h2, h3 { line-height: 1.2; }
   font-size: 9px; background: var(--gm); color: #fff;
   padding: 1px 5px; border-radius: 10px; font-weight: 700;
   flex-shrink: 0; /* el badge nunca se recorta */
+}
+.s-unpaid-tag {
+  font-size: 11px; color: var(--r);
+  flex-shrink: 0;
 }
 
 /* Puntos: ancho fijo a la derecha del nombre */
