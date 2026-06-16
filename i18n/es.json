@@ -111,7 +111,9 @@
     "pending":       "Pendiente",
     "result":        "Resultado",
     "updateTeams":   "Actualizar equipos clasificados",
-    "lastUpdate":    "Última actualización"
+    "lastUpdate":    "Última actualización",
+    "tbd":           "Por determinar",
+    "advances":      "Pasa"
   },
 
   "standings": {
