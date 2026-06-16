@@ -539,8 +539,21 @@ async function confirmarResultadoElim(partidoId) {
       confirmado: true
     };
 
-    // Recalcular puntos en segundo plano — Paso 3, pendiente de diseño
+    // Recalcular puntos de eliminatorias para este partido
     recalcularPuntosElim(partidoId);
+
+    // Si es la final, además recalcular los puntos especiales de
+    // campeón/subcampeón de TODOS los jugadores. Esto es independiente
+    // de los puntos de eliminatorias del propio partido: un jugador
+    // puede fallar el marcador de la final (puntos de eliminatorias)
+    // y aun así acertar quién sería el campeón en sus predicciones
+    // especiales, o viceversa.
+    if (partidoId === 'final_1') {
+      const subcampeonReal = equipoQuePasa === equipos.local
+        ? equipos.visitante
+        : equipos.local;
+      recalcularPuntosEspecialesFinal(equipoQuePasa, subcampeonReal);
+    }
 
     window.mostrarToast('✅ Resultado confirmado');
 
@@ -629,8 +642,25 @@ window._ejecutarBorradoResElim = async (partidoId) => {
     const puntosSnap = await getDocs(puntosQ);
     await Promise.all(puntosSnap.docs.map(d => deleteDoc(d.ref)));
 
+    // 2b. Si es la final, también borrar los puntos especiales de
+    // campeón/subcampeón de todos los jugadores — ya no hay un campeón
+    // real confirmado del que derivarlos hasta que se vuelva a confirmar.
+    if (partidoId === 'final_1') {
+      const [campeonSnap, subcampeonSnap] = await Promise.all([
+        getDocs(query(collection(db, 'puntos'), where('partido_id', '==', 'especial_campeon'))),
+        getDocs(query(collection(db, 'puntos'), where('partido_id', '==', 'especial_subcampeon')))
+      ]);
+      await Promise.all([
+        ...campeonSnap.docs.map(d => deleteDoc(d.ref)),
+        ...subcampeonSnap.docs.map(d => deleteDoc(d.ref))
+      ]);
+    }
+
     // 3. Actualizar localmente
     delete _resultadosElim[partidoId];
+
+    // 4. Recalcular totales tras los borrados anteriores
+    await recalcularTotalesElim();
 
     window.mostrarToast('✅ Resultado y puntos borrados');
     const c = document.getElementById('resultadosTabContent');
@@ -775,6 +805,56 @@ function calcularPuntosPartidoElim(pred, resultadoReal) {
   if (signoPred === signoReal) return 2;
 
   return 0;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PUNTOS ESPECIALES DE CAMPEÓN / SUBCAMPEÓN (al confirmar la final)
+//  Independientes de los puntos de eliminatorias del partido final_1:
+//  comparan el campeón/subcampeón REAL (deducido del resultado de la
+//  final) contra lo que cada jugador escribió en sus predicciones
+//  especiales (pred_especiales.campeon / .subcampeon), usando el
+//  campo corregido por el admin si existe — mismo patrón que ya usa
+//  admin.js para MVP/goleador oficiales.
+// ══════════════════════════════════════════════════════════════
+
+async function recalcularPuntosEspecialesFinal(campeonReal, subcampeonReal) {
+  try {
+    const norm = str =>
+      (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+    const normCampeon    = norm(campeonReal);
+    const normSubcampeon = norm(subcampeonReal);
+
+    const snap  = await getDocs(collection(db, 'pred_especiales'));
+    const batch = [];
+
+    snap.forEach(d => {
+      const uid  = d.id;
+      const data = d.data();
+
+      const predCampeon    = norm(data.campeon_corregido    || data.campeon    || '');
+      const predSubcampeon = norm(data.subcampeon_corregido || data.subcampeon || '');
+
+      const ptosCampeon    = (normCampeon    && predCampeon    && normCampeon    === predCampeon)    ? 6 : 0;
+      const ptosSubcampeon = (normSubcampeon && predSubcampeon && normSubcampeon === predSubcampeon) ? 2 : 0;
+
+      batch.push(setDoc(
+        doc(db, 'puntos', `${uid}_especial_campeon`),
+        { uid, partido_id: 'especial_campeon', puntos: ptosCampeon, tipo: 'especial', timestamp: serverTimestamp() },
+        { merge: true }
+      ));
+      batch.push(setDoc(
+        doc(db, 'puntos', `${uid}_especial_subcampeon`),
+        { uid, partido_id: 'especial_subcampeon', puntos: ptosSubcampeon, tipo: 'especial', timestamp: serverTimestamp() },
+        { merge: true }
+      ));
+    });
+
+    await Promise.all(batch);
+    await recalcularTotalesElim();
+  } catch (e) {
+    console.error('[recalcularPuntosEspecialesFinal]', e);
+  }
 }
 
 // Mismo cálculo de totales que grupos (recalcularTotales en resultados.js),
