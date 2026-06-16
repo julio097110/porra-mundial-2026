@@ -196,32 +196,6 @@ export async function obtenerTodosUsuarios() {
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 
-// ── Obtener estado de predicciones de un usuario ─────────────
-// Devuelve: 'completo' | 'parcial' | 'ninguno'
-export async function estadoPredicciones(uid) {
-  try {
-    // Comprobar si tiene predicciones de grupos
-    const gruposSnap = await getDocs(
-      query(collection(db, 'predicciones'), where('uid', '==', uid))
-    );
-    const totalGrupos = 72;
-    const tieneGrupos = gruposSnap.size;
-
-    // Comprobar predicciones especiales
-    const espSnap = await getDoc(doc(db, 'pred_especiales', uid));
-    const tieneEspeciales = espSnap.exists() &&
-      espSnap.data().campeon &&
-      espSnap.data().subcampeon;
-
-    if (tieneGrupos === 0) return 'ninguno';
-    if (tieneGrupos < totalGrupos || !tieneEspeciales) return 'parcial';
-    return 'completo';
-  } catch (e) {
-    console.error('[estadoPredicciones]', e);
-    return 'ninguno';
-  }
-}
-
 // ── Helper: comprobar si el plazo está abierto ───────────────
 export async function plazoAbierto(tipo = 'grupos') {
   try {
