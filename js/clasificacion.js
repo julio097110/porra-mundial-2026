@@ -26,12 +26,9 @@ let _config      = {};    // config general (bote_total)
 let _paginaActual= 1;
 const POR_PAGINA = 20;
 let _unsubscribe = null;
-let _partidosJugados = 0; // partidos de grupos confirmados (ver cargarPartidosJugados)
+let _partidosJugados = 0; // partidos confirmados (grupos + eliminatorias, ver cargarPartidosJugados)
 
 // Total de partidos del torneo: 72 de fase de grupos + 32 de eliminatorias.
-// NOTA: de momento solo se cuentan partidos de GRUPOS jugados, porque aún
-// no existe un sistema de confirmación de resultados reales para
-// eliminatorias (pendiente — ver Fase 2 documentada en CONTEXTO_PROYECTO.md).
 const TOTAL_PARTIDOS = 104;
 
 // ── Punto de entrada ─────────────────────────────────────────
@@ -113,18 +110,23 @@ async function cargarRanking() {
   }
 }
 
-// ── Cargar nº de partidos de grupos confirmados ────────────────
-// Lee directamente de Firestore (colección 'resultados'), igual que hace
-// resultados.js. No usa window._resultadosCache porque ese objeto global
-// nunca llega a rellenarse desde ningún módulo — ese era el origen del
-// bug que mostraba siempre "0 partidos jugados".
+// ── Cargar nº de partidos confirmados (grupos + eliminatorias) ─
+// Lee directamente de Firestore ('resultados' y 'resultados_elim'),
+// igual que hacen resultados.js / resultados_elim.js. No usa
+// window._resultadosCache porque ese objeto global nunca llega a
+// rellenarse desde ningún módulo — ese era el origen del bug que
+// mostraba siempre "0 partidos jugados".
 async function cargarPartidosJugados() {
   try {
-    const snap = await getDocs(collection(db, 'resultados'));
+    const [snapGrupos, snapElim] = await Promise.all([
+      getDocs(collection(db, 'resultados')),
+      getDocs(collection(db, 'resultados_elim'))
+    ]);
+
     let jugados = 0;
-    snap.forEach(d => {
-      if (d.data().confirmado) jugados++;
-    });
+    snapGrupos.forEach(d => { if (d.data().confirmado) jugados++; });
+    snapElim.forEach(d => { if (d.data().confirmado) jugados++; });
+
     _partidosJugados = jugados;
   } catch (e) {
     console.error('[cargarPartidosJugados]', e);
