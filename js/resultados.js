@@ -13,11 +13,13 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_GRUPOS, GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
+import { initResultadosElim, detenerResultadosElim } from './resultados_elim.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
 let _resultados  = {};   // { partidoId: { goles_local, goles_visitante, confirmado } }
 let _unsubscribe = null;
+let _subTabRes   = 'grupos';   // 'grupos' | 'eliminatorias'
 
 // ── Punto de entrada ─────────────────────────────────────────
 export async function initResultados(app) {
@@ -28,24 +30,23 @@ export async function initResultados(app) {
   try {
     await cargarResultadosFirestore();
 
-    if (_app.esAdmin) {
-      renderAdmin(contenedor);
-    } else {
-      renderJugador(contenedor);
-    }
+    renderShellResultados(contenedor);
 
-    // Refrescar textos al cambiar idioma
+    // Refrescar textos al cambiar idioma — delega según la sub-pestaña activa
     window._refreshTextos = () => {
-      const c = document.getElementById('resultadosContent');
-      if (!c) return;
-      if (_app.esAdmin) renderAdmin(c);
-      else renderJugador(c);
+      const shell = document.getElementById('resultadosContent');
+      if (!shell) return;
+      if (_subTabRes === 'eliminatorias') detenerResultadosElim();
+      renderShellResultados(shell);
     };
 
-    // Escuchar cambios en tiempo real
+    // Escuchar cambios en tiempo real (grupos). Solo re-renderiza la
+    // sub-vista de grupos si es la que está activa; si el admin está
+    // viendo eliminatorias, no la pisa.
     _unsubscribe = onSnapshot(collection(db, 'resultados'), (snap) => {
       snap.forEach(d => { _resultados[d.id] = d.data(); });
-      const c = document.getElementById('resultadosContent');
+      if (_subTabRes !== 'grupos') return;
+      const c = document.getElementById('resultadosTabContent');
       if (c) {
         if (_app.esAdmin) renderAdmin(c);
         else renderJugador(c);
@@ -55,6 +56,45 @@ export async function initResultados(app) {
   } catch (e) {
     console.error('[resultados]', e);
     contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;
+  }
+}
+
+// ── Shell con sub-toggle Grupos/Eliminatorias ─────────────────
+function renderShellResultados(contenedor) {
+  contenedor.innerHTML = `
+    <div class="sub-toggle">
+      <button class="sub-btn ${_subTabRes === 'grupos' ? 'active' : ''}"
+        onclick="window._resultadosSetTab('grupos')">${t('subNav.groupStage')}</button>
+      <button class="sub-btn ${_subTabRes === 'eliminatorias' ? 'active' : ''}"
+        onclick="window._resultadosSetTab('eliminatorias')">${t('subNav.knockouts')}</button>
+    </div>
+
+    <div id="resultadosTabContent"></div>
+  `;
+
+  window._resultadosSetTab = (tab) => {
+    if (_subTabRes === tab) return;
+    _subTabRes = tab;
+    document.querySelectorAll('#resultadosContent .sub-btn').forEach((b, i) => {
+      b.classList.toggle('active', ['grupos', 'eliminatorias'][i] === tab);
+    });
+    renderTabContentResultados();
+  };
+
+  renderTabContentResultados();
+}
+
+// ── Renderiza el contenido de la sub-pestaña activa ───────────
+function renderTabContentResultados() {
+  const c = document.getElementById('resultadosTabContent');
+  if (!c) return;
+
+  if (_subTabRes === 'eliminatorias') {
+    initResultadosElim(_app, c);
+  } else {
+    detenerResultadosElim();
+    if (_app.esAdmin) renderAdmin(c);
+    else renderJugador(c);
   }
 }
 
@@ -330,7 +370,7 @@ function editarResultado(partidoId) {
   if (_resultados[partidoId]) {
     _resultados[partidoId] = { ..._resultados[partidoId], confirmado: false };
   }
-  const c = document.getElementById('resultadosContent');
+  const c = document.getElementById('resultadosTabContent');
   if (c) renderAdmin(c);
 }
 
@@ -382,7 +422,7 @@ window._ejecutarBorradoRes = async (partidoId) => {
     await recalcularTotales();
 
     window.mostrarToast('✅ Resultado y puntos borrados');
-    const c = document.getElementById('resultadosContent');
+    const c = document.getElementById('resultadosTabContent');
     if (c) renderAdmin(c);
 
   } catch (e) {
@@ -513,7 +553,7 @@ async function calcularClasificados() {
     window.mostrarToast(msg, 5000);
 
     // Re-renderizar para actualizar el contador
-    const c = document.getElementById('resultadosContent');
+    const c = document.getElementById('resultadosTabContent');
     if (c) renderAdmin(c);
 
   } catch (e) {
@@ -548,7 +588,7 @@ window._ejecutarBorradoClasificados = async () => {
     await deleteDoc(doc(db, 'config', 'bracket_eliminatorias'));
 
     window.mostrarToast('✅ Bracket borrado');
-    const c = document.getElementById('resultadosContent');
+    const c = document.getElementById('resultadosTabContent');
     if (c) renderAdmin(c);
   } catch (e) {
     console.error('[borrarClasificados]', e);
