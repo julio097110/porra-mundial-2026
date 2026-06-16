@@ -1165,15 +1165,27 @@ async function guardarPrediccionesElim() {
 
     const batch = [];
     Object.entries(_predElim).forEach(([id, pred]) => {
+      // Capturamos los nombres (o placeholders, si aún no hay equipos
+      // reales determinados) que el jugador tiene en pantalla en este
+      // cruce justo en el momento de guardar. El bracket de eliminatorias
+      // se rellena de una sola vez y no se vuelve a editar, así que este
+      // dato queda fijo: es la base para comparar más adelante si el
+      // jugador acertó qué equipos jugaban este cruce (ver resultados_elim.js).
+      const partido = buscarPartidoBracket(id);
+      const equipoLocalPred     = partido?.equipoLocal     || partido?.placeholderLocal     || null;
+      const equipoVisitantePred = partido?.equipoVisitante || partido?.placeholderVisitante || null;
+
       batch.push(setDoc(
         doc(db, 'predicciones_elim', `${_app.uid}_${id}`),
         {
-          uid:       _app.uid,
-          partido_id: id,
-          local:     pred.local ?? '',
-          visitante: pred.visitante ?? '',
-          ganador:   pred.ganador || null,
-          timestamp: serverTimestamp()
+          uid:               _app.uid,
+          partido_id:        id,
+          local:             pred.local ?? '',
+          visitante:         pred.visitante ?? '',
+          ganador:           pred.ganador || null,
+          equipo_local:      equipoLocalPred,
+          equipo_visitante:  equipoVisitantePred,
+          timestamp:         serverTimestamp()
         },
         { merge: true }
       ));
