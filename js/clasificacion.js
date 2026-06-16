@@ -26,6 +26,13 @@ let _config      = {};    // config general (bote_total)
 let _paginaActual= 1;
 const POR_PAGINA = 20;
 let _unsubscribe = null;
+let _partidosJugados = 0; // partidos de grupos confirmados (ver cargarPartidosJugados)
+
+// Total de partidos del torneo: 72 de fase de grupos + 32 de eliminatorias.
+// NOTA: de momento solo se cuentan partidos de GRUPOS jugados, porque aún
+// no existe un sistema de confirmación de resultados reales para
+// eliminatorias (pendiente — ver Fase 2 documentada en CONTEXTO_PROYECTO.md).
+const TOTAL_PARTIDOS = 104;
 
 // ── Punto de entrada ─────────────────────────────────────────
 export async function initClasificacion(app) {
@@ -44,6 +51,7 @@ export async function initClasificacion(app) {
 
     // Cargar ranking inicial
     await cargarRanking();
+    await cargarPartidosJugados();
     renderClasificacion(contenedor);
 
     // Refrescar textos al cambiar idioma sin recargar desde Firestore
@@ -102,6 +110,25 @@ async function cargarRanking() {
 
   } catch (e) {
     console.error('[cargarRanking]', e);
+  }
+}
+
+// ── Cargar nº de partidos de grupos confirmados ────────────────
+// Lee directamente de Firestore (colección 'resultados'), igual que hace
+// resultados.js. No usa window._resultadosCache porque ese objeto global
+// nunca llega a rellenarse desde ningún módulo — ese era el origen del
+// bug que mostraba siempre "0 partidos jugados".
+async function cargarPartidosJugados() {
+  try {
+    const snap = await getDocs(collection(db, 'resultados'));
+    let jugados = 0;
+    snap.forEach(d => {
+      if (d.data().confirmado) jugados++;
+    });
+    _partidosJugados = jugados;
+  } catch (e) {
+    console.error('[cargarPartidosJugados]', e);
+    _partidosJugados = 0;
   }
 }
 
@@ -220,7 +247,7 @@ function renderClasificacion(contenedor) {
   // Notice de jornada
   html += `
     <div class="notice">
-      📊 ${t('standings.matchday')} ${t('standings.played')} · ${contarPartidosJugados()} ${t('standings.matches')} 72
+      📊 ${t('standings.matchday')} ${t('standings.played')} · ${_partidosJugados} ${t('standings.matches')} ${TOTAL_PARTIDOS}
     </div>`;
 
   // Tarjeta bote total (si existe)
@@ -445,9 +472,3 @@ function renderCriterios(bote, p1, p2, p3) {
     </div>`;
 }
 
-// ── Helper: contar partidos jugados ──────────────────────────
-function contarPartidosJugados() {
-  return Object.values(
-    (window._resultadosCache || {})
-  ).filter(r => r.confirmado).length;
-}
