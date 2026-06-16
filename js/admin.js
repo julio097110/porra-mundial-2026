@@ -1410,11 +1410,26 @@ function registrarHandlers() {
 
 async function cargarUsuarios() {
   const snap = await getDocs(collection(db, 'usuarios'));
-  const predSnap = await getDocs(collection(db, 'predicciones'));
+  const predGruposSnap = await getDocs(collection(db, 'predicciones'));
+  const predElimSnap   = await getDocs(collection(db, 'predicciones_elim'));
 
-  // Contar predicciones por usuario
+  // Total de partidos del torneo: 72 de fase de grupos + 32 de eliminatorias.
+  // (Las predicciones especiales — campeón, subcampeón, MVP, goleador — NO
+  // cuentan para "completo": solo se exige tener rellenos los 104 partidos.)
+  const TOTAL_PARTIDOS = 104;
+
+  // Contar predicciones de grupos por usuario, excluyendo el documento
+  // de desempates (id `${uid}_desempates`), que no es un partido.
   const conteo = {};
-  predSnap.forEach(d => {
+  predGruposSnap.forEach(d => {
+    const data = d.data();
+    if (data.partido_id === 'desempates') return;
+    const uid = data.uid;
+    if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
+  });
+
+  // Sumar predicciones de eliminatorias por usuario
+  predElimSnap.forEach(d => {
     const uid = d.data().uid;
     if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
   });
@@ -1429,7 +1444,7 @@ async function cargarUsuarios() {
       idioma:       data.idioma   || 'es',
       rol:          data.rol      || 'jugador',
       pagado:       data.pagado   || false,
-      estadoPred:   n === 0 ? 'ninguno' : n < 72 ? 'parcial' : 'completo'
+      estadoPred:   n === 0 ? 'ninguno' : n < TOTAL_PARTIDOS ? 'parcial' : 'completo'
     };
   }).sort((a, b) => a.nombre_visible.localeCompare(b.nombre_visible));
 }
