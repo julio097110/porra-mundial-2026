@@ -111,7 +111,9 @@
     "pending":       "Pending",
     "result":        "Result",
     "updateTeams":   "Update qualified teams",
-    "lastUpdate":    "Last updated"
+    "lastUpdate":    "Last updated",
+    "tbd":           "To be determined",
+    "advances":      "Advances"
   },
 
   "standings": {
