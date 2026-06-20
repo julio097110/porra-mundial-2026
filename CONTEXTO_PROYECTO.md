@@ -1,6 +1,6 @@
 # 🌍 CONTEXTO PROYECTO — Porra Mundial 2026
 > Léeme al inicio de cada nueva conversación para tener el contexto completo.
-> Última actualización: 12 junio 2026
+> Última actualización: 20 junio 2026
 
 ---
 
@@ -180,7 +180,7 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 - Buscador de jugadores
 - El usuario propio destacado en verde
 
-### Panel de Admin (8 secciones)
+### Panel de Admin (9 secciones)
 1. **Resumen** — estadísticas + accesos rápidos
 2. **Jugadores** — crear/editar/eliminar jugadores, marcar pagos
 3. **Ver predicciones** — resumen de predicciones de cada jugador + borrar por tipo con confirmación
@@ -191,6 +191,7 @@ Sub-toggle con 3 pestañas: **Fase de grupos · Eliminatorias · Predicciones es
 8. **Especiales** — dos bloques:
    - **Resultado oficial:** el admin introduce el MVP real y el goleador real del torneo y los guarda en `config/general`. Botón separado "Recalcular puntos especiales" que recorre todas las `pred_especiales`, compara usando el campo corregido si existe (si no el original), y puntúa con 3 pts si coincide (normalizado: sin acentos, minúsculas).
    - **Corrección ortográfica:** tabla con el nombre original del usuario y un campo para introducir la corrección. Escribe en `mvp_corregido`/`goleador_corregido` sin tocar `mvp`/`goleador` original.
+9. **Integridad** — botón "Verificar integridad de puntos": suma todos los documentos de `puntos` (tipo grupo + eliminatoria) agrupados por uid y los compara con el `total` guardado en `clasificacion`. Muestra una tabla con suma calculada, total guardado, diferencia y estado (✓ coincide / ⚠️ discrepancia / sin datos). **Solo lectura, no modifica nada en Firestore.** Pensada para poder auditar la clasificación periódicamente sin depender de revisar Firestore a mano.
 
 ### Página info.html (pública, sin login)
 - Bilingüe ES/EN independiente del login
@@ -279,13 +280,13 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 
 ---
 
-## 11. ESTADO ACTUAL (12 junio 2026)
+## 11. ESTADO ACTUAL (20 junio 2026)
 
 - ✅ Web publicada y accesible
 - ✅ Firebase Auth + Firestore funcionando
 - ✅ Admin puede crear jugadores, marcar pagos, confirmar resultados
 - ✅ Jugadores reales creados y usando la app
-- ✅ Panel admin funcionando correctamente (8 secciones)
+- ✅ Panel admin funcionando correctamente (9 secciones)
 - ✅ Login con email completo + contraseña (decisión de diseño final)
 - ✅ EmailJS configurado y funcionando (2 plantillas)
 - ✅ Bracket de eliminatorias completo: 16+8+4+2+1+1 partidos
@@ -299,6 +300,7 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 - ✅ Fechas de los 72 partidos de grupos corregidas con fuente oficial FIFA (kickoffclock.com + Al Jazeera)
 - ✅ Nuevo archivo data/partidos_elim.js con 32 partidos de eliminatorias y fechaUTC oficial
 - ✅ prediccion.js importa partidos_elim.js y muestra hora correcta en el bracket de eliminatorias
+- ✅ Nueva sección admin "Integridad": verifica de un vistazo que la suma de `puntos` de cada jugador coincide con su total en `clasificacion`
 - ⚠️ Banderas: no se ven en Windows (decisión de no resolver)
 - ⚠️ API de resultados: solo funciona desde localhost — ver sección 16 para plan de resolución
 - 🔲 Pendiente: integrar eliminatorias en pestaña Resultados (Parte 3)
@@ -351,6 +353,7 @@ Los archivos se editan **directamente en GitHub desde el navegador** (sin Git Gu
 | 9 | 12 jun 2026 | `data/partidos.js` | Bug fix: todas las `fechaUTC` de los 72 partidos de grupos estaban 1 hora adelantadas (Australia-Türkiye tenía un error mayor). Corregidas con fuente oficial FIFA verificada en kickoffclock.com y Al Jazeera. |
 | 10 | 12 jun 2026 | `data/partidos_elim.js` *(nuevo)* | Creado archivo con los 32 partidos de eliminatorias (R32×16, R16×8, QF×4, SF×2, 3er×1, Final×1). Solo contiene datos estáticos: `id`, `ronda`, `fechaUTC`, `sede`, `ciudad`, `pais`. Los equipos siguen siendo `null` y se leen de Firestore (`config/bracket_eliminatorias`). |
 | 11 | 12 jun 2026 | `js/prediccion.js` | Integración de `partidos_elim.js`: añadido import de `PARTIDOS_ELIM`. `obtenerPartidos16()` y `obtenerPartidosFase()` enriquecen cada partido con `fechaUTC` del nuevo archivo. `renderBracketMatch()` usa `formatMatchDate(p.fechaUTC)` para mostrar la hora correcta en el bracket. |
+| 12 | 20 jun 2026 | `js/admin.js`, `i18n/es.json`, `i18n/en.json` | Nueva 9ª sección del panel admin: **Integridad**. Botón "Verificar integridad de puntos" que suma todos los documentos de `puntos` (grupo + eliminatoria) agrupados por uid y los compara con el `total` guardado en `clasificacion`, mostrando una tabla con suma calculada, total guardado, diferencia y estado. Solo lectura, no escribe nada en Firestore. Motivado por una duda puntual de un salto de puntos (25→27) que, tras investigar con la consola de Firebase, resultó ser una suma correcta y no un bug — esta herramienta permite comprobarlo de un vistazo sin tener que entrar a Firestore manualmente. Nuevas claves i18n: `admin.integrity.*` (title, subtitle, checkBtn, checking, player, calculated, stored, diff, status, ok, mismatch, missing, allOk, foundIssues, lastCheck). |
 
 ---
 
