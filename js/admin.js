@@ -30,6 +30,7 @@ let _bracket     = {};   // config/bracket_eliminatorias
 let _resultadosGrupos = {}; // resultados confirmados para saber qué grupos están completos
 let _paginaJug   = 1;
 const POR_PAGINA = 20;
+let _integridad  = null; // { filas: [...], generadoEn: Date } | null
 
 // ── Punto de entrada ─────────────────────────────────────────
 export async function initAdmin(app) {
@@ -85,6 +86,7 @@ function renderAdmin(contenedor) {
         ${menuItem('especiales',   '⭐', t('admin.specials.title'))}
         ${menuItem('bracket',      '🏆', 'Bracket',
           Object.values(_bracket).filter(p => p?.terceroPendiente).length || 0)}
+        ${menuItem('integridad',   '🔍', t('admin.integrity.title'))}
       </div>
 
       <!-- Contenido -->
@@ -130,6 +132,7 @@ function renderSeccion() {
     case 'info':          return renderInfoPage();
     case 'especiales':    return renderEspecialesAdmin();
     case 'bracket':       return renderBracketAdmin();
+    case 'integridad':    return renderIntegridad();
     default:              return renderResumen();
   }
 }
@@ -896,10 +899,148 @@ function modalJugador(uid = null) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  HANDLERS (registrados tras cada render)
+//  INTEGRIDAD — verifica que la suma de 'puntos' de cada jugador
+//  coincide con el total guardado en 'clasificacion'. Solo lectura.
 // ══════════════════════════════════════════════════════════════
 
+function renderIntegridad() {
+  return `
+    <div>
+      <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:4px;">
+        🔍 ${t('admin.integrity.title')}
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+        ${t('admin.integrity.subtitle')}
+      </div>
+
+      <button class="btn btn-primary btn-sm" id="btnCheckIntegridad"
+        onclick="window._adminVerificarIntegridad()">
+        🔍 ${t('admin.integrity.checkBtn')}
+      </button>
+
+      <div id="integridadResultado" style="margin-top:16px;">
+        ${_integridad ? renderResultadoIntegridad() : ''}
+      </div>
+    </div>`;
+}
+
+function renderResultadoIntegridad() {
+  const { filas, generadoEn } = _integridad;
+  const conProblema = filas.filter(f => f.estado !== 'ok');
+
+  const resumenHtml = conProblema.length === 0
+    ? `<div class="notice" style="margin-bottom:12px;">${t('admin.integrity.allOk')}</div>`
+    : `<div class="notice error" style="margin-bottom:12px;">
+         ${t('admin.integrity.foundIssues').replace('{n}', conProblema.length)}
+       </div>`;
+
+  return `
+    ${resumenHtml}
+    <div style="font-size:11px; color:var(--tm); margin-bottom:8px;">
+      ${t('admin.integrity.lastCheck')}: ${generadoEn.toLocaleString()}
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0; overflow-x:auto;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>${t('admin.integrity.player')}</th>
+              <th>${t('admin.integrity.calculated')}</th>
+              <th>${t('admin.integrity.stored')}</th>
+              <th>${t('admin.integrity.diff')}</th>
+              <th>${t('admin.integrity.status')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filas.map(f => `
+              <tr>
+                <td><span class="player-name">${f.nombre}</span></td>
+                <td>${f.suma}</td>
+                <td>${f.total === null ? '—' : f.total}</td>
+                <td>${f.total === null ? '—' : (f.suma - f.total)}</td>
+                <td>
+                  ${f.estado === 'ok'
+                    ? `<span class="admin-sidebar-badge" style="background:var(--gl); color:#fff;">✓ ${t('admin.integrity.ok')}</span>`
+                    : f.estado === 'missing'
+                      ? `<span class="admin-sidebar-badge red">${t('admin.integrity.missing')}</span>`
+                      : `<span class="admin-sidebar-badge red">⚠️ ${t('admin.integrity.mismatch')}</span>`}
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function verificarIntegridadPuntos() {
+  // 1. Sumar todos los documentos de 'puntos' agrupados por uid
+  //    (incluye tipo 'grupo' y 'eliminatoria' juntos)
+  const puntosSnap = await getDocs(collection(db, 'puntos'));
+  const sumas = {};
+  puntosSnap.forEach(d => {
+    const { uid, puntos } = d.data();
+    if (!uid) return;
+    sumas[uid] = (sumas[uid] || 0) + (puntos || 0);
+  });
+
+  // 2. Leer 'clasificacion' (total guardado por uid)
+  const clasifSnap = await getDocs(collection(db, 'clasificacion'));
+  const totales = {};
+  clasifSnap.forEach(d => {
+    const { uid, total } = d.data();
+    if (!uid) return;
+    totales[uid] = total ?? 0;
+  });
+
+  // 3. Unir todos los uids que aparezcan en cualquiera de las dos colecciones
+  const todosUids = new Set([...Object.keys(sumas), ...Object.keys(totales)]);
+
+  const filas = [...todosUids].map(uid => {
+    const usuario = _usuarios.find(u => u.uid === uid);
+    const nombre = usuario?.nombre_visible || uid;
+    const suma = sumas[uid] ?? 0;
+    const total = Object.prototype.hasOwnProperty.call(totales, uid) ? totales[uid] : null;
+
+    let estado = 'ok';
+    if (total === null) estado = 'missing';
+    else if (suma !== total) estado = 'mismatch';
+
+    return { uid, nombre, suma, total, estado };
+  });
+
+  // Ordenar: discrepancias primero, luego alfabético
+  filas.sort((a, b) => {
+    if (a.estado !== 'ok' && b.estado === 'ok') return -1;
+    if (a.estado === 'ok' && b.estado !== 'ok') return 1;
+    return a.nombre.localeCompare(b.nombre);
+  });
+
+  return { filas, generadoEn: new Date() };
+}
+
 function registrarHandlers() {
+
+  // Verificar integridad de puntos (solo lectura)
+  window._adminVerificarIntegridad = async () => {
+    const btn = document.getElementById('btnCheckIntegridad');
+    const cont = document.getElementById('integridadResultado');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `🔄 ${t('admin.integrity.checking')}`;
+    }
+    try {
+      _integridad = await verificarIntegridadPuntos();
+      if (cont) cont.innerHTML = renderResultadoIntegridad();
+    } catch (e) {
+      console.error('[verificarIntegridad]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `🔍 ${t('admin.integrity.checkBtn')}`;
+      }
+    }
+  };
 
   // Paginación jugadores
   window._adminPagJug = (pag) => {
