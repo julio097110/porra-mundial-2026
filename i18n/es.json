@@ -272,6 +272,23 @@
       "recalcBtn":       "Recalcular puntos especiales",
       "officialSet":     "Resultado oficial guardado",
       "correctedCol":    "Corregido"
+    },
+    "integrity": {
+      "title":       "Integridad de puntos",
+      "subtitle":    "Compara la suma de los puntos guardados de cada jugador con su total en la clasificación. Solo lectura, no modifica nada.",
+      "checkBtn":    "Verificar integridad de puntos",
+      "checking":    "Verificando...",
+      "player":      "Jugador",
+      "calculated":  "Suma calculada",
+      "stored":      "Total guardado",
+      "diff":        "Diferencia",
+      "status":      "Estado",
+      "ok":          "Coincide",
+      "mismatch":    "Discrepancia",
+      "missing":     "Sin datos",
+      "allOk":       "✅ Todo coincide, no se han encontrado discrepancias",
+      "foundIssues": "⚠️ Se han encontrado discrepancias en {n} jugador(es)",
+      "lastCheck":   "Última verificación"
     }
   },
 
