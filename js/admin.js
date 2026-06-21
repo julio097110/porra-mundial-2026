@@ -18,6 +18,8 @@ import {
   eliminarUsuarioFirestore, obtenerTodosUsuarios
 } from './auth.js';
 import { GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
+import { calcularPuntosPartido } from './resultados.js';
+import { calcularPuntosPartidoElim } from './resultados_elim.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
@@ -899,8 +901,16 @@ function modalJugador(uid = null) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  INTEGRIDAD — verifica que la suma de 'puntos' de cada jugador
-//  coincide con el total guardado en 'clasificacion'. Solo lectura.
+//  INTEGRIDAD — audita la colección 'puntos' en dos niveles:
+//   1) ¿la suma de 'puntos' de cada jugador coincide con el total
+//      guardado en 'clasificacion'?
+//   2) ¿esa suma coincide con lo que DEBERÍA ser, recalculando desde
+//      cero a partir de 'resultados' + 'predicciones' (grupos),
+//      'resultados_elim' + 'predicciones_elim' (eliminatorias) y
+//      'config/general' + 'pred_especiales' (campeón, subcampeón,
+//      MVP, goleador), usando las mismas funciones de cálculo que
+//      usa la app en producción?
+//  Solo lectura: nunca escribe nada en Firestore.
 // ══════════════════════════════════════════════════════════════
 
 function renderIntegridad() {
@@ -925,17 +935,26 @@ function renderIntegridad() {
 }
 
 function renderResultadoIntegridad() {
-  const { filas, generadoEn } = _integridad;
+  const { filas, generadoEn, elimSinDatos, especialesSinDatos } = _integridad;
   const conProblema = filas.filter(f => f.estado !== 'ok');
 
   const resumenHtml = conProblema.length === 0
-    ? `<div class="notice" style="margin-bottom:12px;">${t('admin.integrity.allOk')}</div>`
-    : `<div class="notice error" style="margin-bottom:12px;">
+    ? `<div class="notice" style="margin-bottom:8px;">${t('admin.integrity.allOk')}</div>`
+    : `<div class="notice error" style="margin-bottom:8px;">
          ${t('admin.integrity.foundIssues').replace('{n}', conProblema.length)}
        </div>`;
 
+  const avisoIncompleto = (elimSinDatos || especialesSinDatos)
+    ? `<div class="notice" style="margin-bottom:12px; background:#fff8e6; border-color:#f0d27a; color:#7a5d10;">
+         ℹ️ ${t('admin.integrity.partialAudit')}
+         ${elimSinDatos ? `<br>• ${t('admin.integrity.noElimData')}` : ''}
+         ${especialesSinDatos ? `<br>• ${t('admin.integrity.noSpecialsData')}` : ''}
+       </div>`
+    : '';
+
   return `
     ${resumenHtml}
+    ${avisoIncompleto}
     <div style="font-size:11px; color:var(--tm); margin-bottom:8px;">
       ${t('admin.integrity.lastCheck')}: ${generadoEn.toLocaleString()}
     </div>
@@ -947,8 +966,10 @@ function renderResultadoIntegridad() {
               <th>${t('admin.integrity.player')}</th>
               <th>${t('admin.integrity.calculated')}</th>
               <th>${t('admin.integrity.stored')}</th>
+              <th>${t('admin.integrity.recalculated')}</th>
               <th>${t('admin.integrity.diff')}</th>
               <th>${t('admin.integrity.status')}</th>
+              <th>${t('admin.integrity.detail')}</th>
             </tr>
           </thead>
           <tbody>
@@ -957,13 +978,19 @@ function renderResultadoIntegridad() {
                 <td><span class="player-name">${f.nombre}</span></td>
                 <td>${f.suma}</td>
                 <td>${f.total === null ? '—' : f.total}</td>
-                <td>${f.total === null ? '—' : (f.suma - f.total)}</td>
+                <td>${f.recalculado}</td>
+                <td>${f.suma - f.recalculado}</td>
                 <td>
                   ${f.estado === 'ok'
                     ? `<span class="admin-sidebar-badge" style="background:var(--gl); color:#fff;">✓ ${t('admin.integrity.ok')}</span>`
                     : f.estado === 'missing'
                       ? `<span class="admin-sidebar-badge red">${t('admin.integrity.missing')}</span>`
                       : `<span class="admin-sidebar-badge red">⚠️ ${t('admin.integrity.mismatch')}</span>`}
+                </td>
+                <td style="font-size:11px; color:var(--r); max-width:260px;">
+                  ${f.detalleDiscrepancias.length
+                    ? f.detalleDiscrepancias.map(d => `${d.partido}: ${d.guardado}→${d.recalculado}`).join(', ')
+                    : '—'}
                 </td>
               </tr>`).join('')}
           </tbody>
@@ -972,15 +999,47 @@ function renderResultadoIntegridad() {
     </div>`;
 }
 
+// ── Recalcula desde cero los puntos de un jugador para un conjunto
+//    de partidos de grupo, devolviendo el detalle por partido ──────
+function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo) {
+  const detalle = {}; // { partido_id: puntosRecalculados }
+  Object.entries(resultadosGrupo).forEach(([partidoId, res]) => {
+    if (!res?.confirmado) return;
+    const pred = prediccionesPorPartido[`${uid}_${partidoId}`];
+    detalle[partidoId] = pred
+      ? calcularPuntosPartido(pred, res.goles_local, res.goles_visitante)
+      : 0;
+  });
+  return detalle;
+}
+
+// ── Recalcula desde cero los puntos de un jugador para eliminatorias ──
+function recalcularPuntosElimJugador(uid, prediccionesElimPorPartido, resultadosElim) {
+  const detalle = {};
+  Object.entries(resultadosElim).forEach(([partidoId, res]) => {
+    if (!res?.confirmado) return;
+    const pred = prediccionesElimPorPartido[`${uid}_${partidoId}`];
+    detalle[partidoId] = pred
+      ? calcularPuntosPartidoElim(pred, res)
+      : 0;
+  });
+  return detalle;
+}
+
 async function verificarIntegridadPuntos() {
   // 1. Sumar todos los documentos de 'puntos' agrupados por uid
-  //    (incluye tipo 'grupo' y 'eliminatoria' juntos)
+  //    (incluye tipo 'grupo', 'eliminatoria' y 'especial' juntos)
   const puntosSnap = await getDocs(collection(db, 'puntos'));
   const sumas = {};
+  // También guardamos el detalle por partido_id para poder comparar
+  // contra el recálculo y señalar exactamente dónde difiere.
+  const puntosGuardadosPorPartido = {}; // { uid: { partido_id: puntos } }
   puntosSnap.forEach(d => {
-    const { uid, puntos } = d.data();
+    const { uid, puntos, partido_id } = d.data();
     if (!uid) return;
     sumas[uid] = (sumas[uid] || 0) + (puntos || 0);
+    if (!puntosGuardadosPorPartido[uid]) puntosGuardadosPorPartido[uid] = {};
+    puntosGuardadosPorPartido[uid][partido_id] = puntos || 0;
   });
 
   // 2. Leer 'clasificacion' (total guardado por uid)
@@ -992,8 +1051,64 @@ async function verificarIntegridadPuntos() {
     totales[uid] = total ?? 0;
   });
 
-  // 3. Unir todos los uids que aparezcan en cualquiera de las dos colecciones
-  const todosUids = new Set([...Object.keys(sumas), ...Object.keys(totales)]);
+  // 3. Cargar todo lo necesario para recalcular desde cero ─────────
+
+  // 3a. Grupos: resultados confirmados + predicciones de todos
+  const resultadosGruposSnap = await getDocs(collection(db, 'resultados'));
+  const resultadosGrupo = {};
+  resultadosGruposSnap.forEach(d => { resultadosGrupo[d.id] = d.data(); });
+
+  const prediccionesSnap = await getDocs(collection(db, 'predicciones'));
+  const prediccionesPorPartido = {}; // { `${uid}_${partido_id}`: pred }
+  prediccionesSnap.forEach(d => {
+    const data = d.data();
+    if (!data.uid || !data.partido_id) return;
+    prediccionesPorPartido[`${data.uid}_${data.partido_id}`] = data;
+  });
+
+  // 3b. Eliminatorias: resultados confirmados + predicciones de todos
+  const resultadosElimSnap = await getDocs(collection(db, 'resultados_elim'));
+  const resultadosElim = {};
+  resultadosElimSnap.forEach(d => { resultadosElim[d.id] = d.data(); });
+
+  const prediccionesElimSnap = await getDocs(collection(db, 'predicciones_elim'));
+  const prediccionesElimPorPartido = {};
+  prediccionesElimSnap.forEach(d => {
+    const data = d.data();
+    if (!data.uid || !data.partido_id) return;
+    prediccionesElimPorPartido[`${data.uid}_${data.partido_id}`] = data;
+  });
+
+  const elimSinDatos = Object.values(resultadosElim).every(r => !r?.confirmado);
+
+  // 3c. Especiales: MVP/goleador oficial + campeón/subcampeón real (final_1)
+  const mvpOfi = _config.mvp_oficial      || '';
+  const golOfi = _config.goleador_oficial || '';
+
+  const finalRes = resultadosElim['final_1'];
+  const finalConfirmada = !!finalRes?.confirmado;
+  let campeonReal = '', subcampeonReal = '';
+  if (finalConfirmada) {
+    campeonReal = finalRes.equipo_que_pasa || '';
+    subcampeonReal = campeonReal === finalRes.equipo_local
+      ? (finalRes.equipo_visitante || '')
+      : (finalRes.equipo_local || '');
+  }
+  const especialesSinDatos = !mvpOfi && !golOfi && !finalConfirmada;
+
+  const norm = str =>
+    (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const especialesSnap = await getDocs(collection(db, 'pred_especiales'));
+  const especialesPorUid = {};
+  especialesSnap.forEach(d => { especialesPorUid[d.id] = d.data(); });
+
+  // 4. Recalcular por jugador ───────────────────────────────────────
+  const todosUids = new Set([
+    ...Object.keys(sumas),
+    ...Object.keys(totales),
+    ..._usuarios.map(u => u.uid)
+  ]);
 
   const filas = [...todosUids].map(uid => {
     const usuario = _usuarios.find(u => u.uid === uid);
@@ -1001,11 +1116,47 @@ async function verificarIntegridadPuntos() {
     const suma = sumas[uid] ?? 0;
     const total = Object.prototype.hasOwnProperty.call(totales, uid) ? totales[uid] : null;
 
+    // Recalculado: grupos + eliminatorias + especiales
+    const detalleGrupo = recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo);
+    const detalleElim   = recalcularPuntosElimJugador(uid, prediccionesElimPorPartido, resultadosElim);
+
+    let puntosEspeciales = {};
+    const esp = especialesPorUid[uid];
+    if (esp) {
+      const predMvp = norm(esp.mvp_corregido || esp.mvp || '');
+      const predGol = norm(esp.goleador_corregido || esp.goleador || '');
+      const predCampeon = norm(esp.campeon_corregido || esp.campeon || '');
+      const predSubcampeon = norm(esp.subcampeon_corregido || esp.subcampeon || '');
+
+      if (mvpOfi) puntosEspeciales['especial_mvp'] = (predMvp && norm(mvpOfi) === predMvp) ? 3 : 0;
+      if (golOfi) puntosEspeciales['especial_goleador'] = (predGol && norm(golOfi) === predGol) ? 3 : 0;
+      if (finalConfirmada) {
+        puntosEspeciales['especial_campeon'] = (predCampeon && norm(campeonReal) === predCampeon) ? 6 : 0;
+        puntosEspeciales['especial_subcampeon'] = (predSubcampeon && norm(subcampeonReal) === predSubcampeon) ? 2 : 0;
+      }
+    }
+
+    const detalleCompleto = { ...detalleGrupo, ...detalleElim, ...puntosEspeciales };
+    const recalculado = Object.values(detalleCompleto).reduce((a, b) => a + b, 0);
+
+    // Comparar partido a partido: guardado en 'puntos' vs recalculado.
+    // Solo se comparan partidos que SÍ entran en el recálculo (es decir,
+    // resultados confirmados / especiales con datos oficiales), para no
+    // marcar como discrepancia partidos que aún no tienen resultado.
+    const guardadoPorPartido = puntosGuardadosPorPartido[uid] || {};
+    const detalleDiscrepancias = Object.entries(detalleCompleto)
+      .filter(([partidoId, valorRecalc]) => (guardadoPorPartido[partidoId] ?? 0) !== valorRecalc)
+      .map(([partido, valorRecalc]) => ({
+        partido,
+        guardado: guardadoPorPartido[partido] ?? 0,
+        recalculado: valorRecalc
+      }));
+
     let estado = 'ok';
     if (total === null) estado = 'missing';
-    else if (suma !== total) estado = 'mismatch';
+    else if (suma !== total || detalleDiscrepancias.length > 0) estado = 'mismatch';
 
-    return { uid, nombre, suma, total, estado };
+    return { uid, nombre, suma, total, recalculado, detalleDiscrepancias, estado };
   });
 
   // Ordenar: discrepancias primero, luego alfabético
@@ -1015,7 +1166,7 @@ async function verificarIntegridadPuntos() {
     return a.nombre.localeCompare(b.nombre);
   });
 
-  return { filas, generadoEn: new Date() };
+  return { filas, generadoEn: new Date(), elimSinDatos, especialesSinDatos };
 }
 
 function registrarHandlers() {
