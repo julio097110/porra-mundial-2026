@@ -768,12 +768,12 @@ async function recalcularPuntosElim(partidoId) {
 // equipo_local/equipo_visitante guardados en predicciones_elim (el
 // nombre o placeholder que el jugador tenía en pantalla al guardar),
 // NO contra pred.local/pred.visitante, que son los goles predichos.
-function equiposCoincidenElim(pred, resultadoReal) {
+export function equiposCoincidenElim(pred, resultadoReal) {
   return pred.equipo_local === resultadoReal.equipo_local &&
          pred.equipo_visitante === resultadoReal.equipo_visitante;
 }
 
-function calcularPuntosPartidoElim(pred, resultadoReal) {
+export function calcularPuntosPartidoElim(pred, resultadoReal) {
   if (!equiposCoincidenElim(pred, resultadoReal)) return 0;
 
   const pl = parseInt(pred.local);
