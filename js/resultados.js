@@ -693,7 +693,7 @@ async function recalcularPuntos(partidoId, golesLocal, golesVisitante) {
   }
 }
 
-function calcularPuntosPartido(pred, golesLocalReal, golesVisitanteReal) {
+export function calcularPuntosPartido(pred, golesLocalReal, golesVisitanteReal) {
   const pl = parseInt(pred.local);
   const pv = parseInt(pred.visitante);
   if (isNaN(pl) || isNaN(pv)) return 0;
