@@ -275,20 +275,25 @@
     },
     "integrity": {
       "title":       "Integridad de puntos",
-      "subtitle":    "Compara la suma de los puntos guardados de cada jugador con su total en la clasificación. Solo lectura, no modifica nada.",
+      "subtitle":    "Compara la suma de los puntos guardados de cada jugador con su total en la clasificación, y recalcula desde cero a partir de resultados y predicciones para verificar que las reglas de puntuación se aplicaron correctamente. Solo lectura, no modifica nada.",
       "checkBtn":    "Verificar integridad de puntos",
       "checking":    "Verificando...",
       "player":      "Jugador",
       "calculated":  "Suma calculada",
       "stored":      "Total guardado",
+      "recalculated":"Recalculado",
       "diff":        "Diferencia",
       "status":      "Estado",
+      "detail":      "Partidos con discrepancia",
       "ok":          "Coincide",
       "mismatch":    "Discrepancia",
       "missing":     "Sin datos",
       "allOk":       "✅ Todo coincide, no se han encontrado discrepancias",
       "foundIssues": "⚠️ Se han encontrado discrepancias en {n} jugador(es)",
-      "lastCheck":   "Última verificación"
+      "lastCheck":   "Última verificación",
+      "partialAudit":"Auditoría parcial: algunas partes del torneo aún no tienen datos que comparar.",
+      "noElimData":  "Eliminatorias: ningún resultado confirmado todavía",
+      "noSpecialsData": "Campeón/Subcampeón: la final aún no se ha confirmado, y no hay MVP/goleador oficial guardado"
     }
   },
 
