@@ -275,20 +275,25 @@
     },
     "integrity": {
       "title":       "Points integrity",
-      "subtitle":    "Compares each player's stored points sum with their classification total. Read-only, changes nothing.",
+      "subtitle":    "Compares each player's stored points sum with their classification total, and recalculates from scratch using results and predictions to verify the scoring rules were applied correctly. Read-only, changes nothing.",
       "checkBtn":    "Check points integrity",
       "checking":    "Checking...",
       "player":      "Player",
       "calculated":  "Calculated sum",
       "stored":      "Stored total",
+      "recalculated":"Recalculated",
       "diff":        "Difference",
       "status":      "Status",
+      "detail":      "Matches with discrepancy",
       "ok":          "Matches",
       "mismatch":    "Mismatch",
       "missing":     "No data",
       "allOk":       "✅ Everything matches, no discrepancies found",
       "foundIssues": "⚠️ Discrepancies found in {n} player(s)",
-      "lastCheck":   "Last check"
+      "lastCheck":   "Last check",
+      "partialAudit":"Partial audit: some parts of the tournament don't have data to compare yet.",
+      "noElimData":  "Knockouts: no confirmed results yet",
+      "noSpecialsData": "Champion/Runner-up: the final hasn't been confirmed yet, and no official MVP/top scorer is saved"
     }
   },
 
