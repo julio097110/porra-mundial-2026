@@ -37,9 +37,6 @@ export async function obtenerPerfil(uid) {
 }
 
 // ── Crear cuenta de usuario (solo admin) ─────────────────────
-// Nota: Firebase Auth no permite crear usuarios desde el cliente
-// sin cerrar la sesión actual. Usamos la REST API de Firebase
-// con la apiKey para crear el usuario sin afectar la sesión admin.
 export async function crearUsuario({
   email,
   password,
@@ -50,29 +47,18 @@ export async function crearUsuario({
 }) {
   const FIREBASE_API_KEY = 'AIzaSyDhIXY8tOLKxKpuXdkSNqZf3Fxaexw3d4c';
 
-  // 1. Verificar que el nombre_visible no esté en uso
   const nombreDisponible = await verificarNombreDisponible(nombre_visible);
-  if (!nombreDisponible) {
-    throw new Error('nombre_taken');
-  }
+  if (!nombreDisponible) throw new Error('nombre_taken');
 
-  // 2. Verificar que el username no esté en uso
   const usernameDisponible = await verificarUsernameDisponible(username);
-  if (!usernameDisponible) {
-    throw new Error('username_taken');
-  }
+  if (!usernameDisponible) throw new Error('username_taken');
 
-  // 3. Crear usuario en Firebase Auth via REST API
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password,
-        returnSecureToken: false
-      })
+      body: JSON.stringify({ email, password, returnSecureToken: false })
     }
   );
 
@@ -84,7 +70,6 @@ export async function crearUsuario({
 
   const newUid = data.localId;
 
-  // 4. Crear documento en Firestore
   await setDoc(doc(db, 'usuarios', newUid), {
     email,
     nombre_visible:       nombre_visible.trim(),
@@ -107,9 +92,7 @@ export async function verificarNombreDisponible(nombre, excluirUid = null) {
   );
   const snap = await getDocs(q);
   if (snap.empty) return true;
-  if (excluirUid) {
-    return snap.docs.every(d => d.id === excluirUid);
-  }
+  if (excluirUid) return snap.docs.every(d => d.id === excluirUid);
   return false;
 }
 
@@ -121,9 +104,7 @@ export async function verificarUsernameDisponible(username, excluirUid = null) {
   );
   const snap = await getDocs(q);
   if (snap.empty) return true;
-  if (excluirUid) {
-    return snap.docs.every(d => d.id === excluirUid);
-  }
+  if (excluirUid) return snap.docs.every(d => d.id === excluirUid);
   return false;
 }
 
@@ -131,14 +112,13 @@ export async function verificarUsernameDisponible(username, excluirUid = null) {
 export async function actualizarNombreVisible(uid, nuevoNombre) {
   const disponible = await verificarNombreDisponible(nuevoNombre, uid);
   if (!disponible) throw new Error('nombre_taken');
-
   await updateDoc(doc(db, 'usuarios', uid), {
     nombre_visible:       nuevoNombre.trim(),
     nombre_visible_lower: nuevoNombre.trim().toLowerCase()
   });
 }
 
-// ── Buscar email por username (para login con nombre de usuario) ─
+// ── Buscar email por username ─────────────────────────────────
 export async function buscarEmailPorUsername(username) {
   const q = query(
     collection(db, 'usuarios'),
@@ -153,8 +133,6 @@ export async function buscarEmailPorUsername(username) {
 export async function cambiarContrasena(passwordActual, passwordNuevo) {
   const user = auth.currentUser;
   if (!user) throw new Error('no_user');
-
-  // Reautenticar antes de cambiar contraseña
   const credential = EmailAuthProvider.credential(user.email, passwordActual);
   await reauthenticateWithCredential(user, credential);
   await updatePassword(user, passwordNuevo);
@@ -180,9 +158,7 @@ export async function marcarPago(uid, pagado) {
   await updateDoc(doc(db, 'usuarios', uid), { pagado });
 }
 
-// ── Eliminar usuario (solo admin) ────────────────────────────
-// Elimina el documento de Firestore. El admin elimina el usuario
-// de Auth manualmente desde Firebase Console si es necesario.
+// ── Eliminar usuario de Firestore (solo admin) ───────────────
 export async function eliminarUsuarioFirestore(uid) {
   const { deleteDoc } = await import(
     'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
@@ -200,14 +176,16 @@ export async function obtenerTodosUsuarios() {
 export async function plazoAbierto(tipo = 'grupos') {
   try {
     const snap = await getDoc(doc(db, 'config', 'general'));
-    if (!snap.exists()) return true; // si no hay config, asumimos abierto
+    if (!snap.exists()) return true;
 
     const config = snap.data();
-    const campo  = tipo === 'grupos'
-      ? 'fecha_limite_grupos'
-      : 'fecha_limite_eliminatorias';
+    const campo =
+      tipo === 'grupos'        ? 'fecha_limite_grupos'        :
+      tipo === 'eliminatorias' ? 'fecha_limite_eliminatorias' :
+      tipo === 'terceros'      ? 'fecha_limite_terceros'      :
+      null;
 
-    if (!config[campo]) return true;
+    if (!campo || !config[campo]) return true;
 
     const limite = config[campo].toDate
       ? config[campo].toDate()
@@ -220,7 +198,7 @@ export async function plazoAbierto(tipo = 'grupos') {
   }
 }
 
-// ── Helper: obtener config general ──────────────────────────
+// ── Helper: obtener config general ───────────────────────────
 export async function obtenerConfig() {
   const snap = await getDoc(doc(db, 'config', 'general'));
   return snap.exists() ? snap.data() : {};
