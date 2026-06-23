@@ -330,6 +330,10 @@ async function confirmarResultado(partidoId) {
   const inputV = document.getElementById(`res_${partidoId}_v`);
   if (!inputL || !inputV) return;
 
+  // Forzar blur para que Safari/iOS confirme el valor antes de leerlo
+  inputL.blur();
+  inputV.blur();
+
   const gl = parseInt(inputL.value);
   const gv = parseInt(inputV.value);
 
@@ -356,8 +360,18 @@ async function confirmarResultado(partidoId) {
 
     _resultados[partidoId] = { goles_local: gl, goles_visitante: gv, confirmado: true };
 
-    // Recalcular puntos en segundo plano
+    // Recalcular puntos del partido en segundo plano
     recalcularPuntos(partidoId, gl, gv);
+
+    // Si el grupo queda completo con este resultado, calcular puntos de clasificados
+    if (partido) {
+      const grupo = partido.grupo;
+      const partidosGrupo = getPartidosPorGrupo(grupo);
+      const grupoCompleto = partidosGrupo.every(p => _resultados[p.id]?.confirmado);
+      if (grupoCompleto) {
+        recalcularPuntosClasificados(grupo);
+      }
+    }
 
     window.mostrarToast('✅ Resultado confirmado');
   } catch (e) {
@@ -400,9 +414,13 @@ window._ejecutarBorradoRes = async (partidoId) => {
     window.appCerrarModal();
     window.mostrarToast('🗑️ Borrando...');
 
-    const { deleteDoc } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
-    );
+    // Determinar el grupo de este partido y si estaba completo ANTES de borrar
+    const partido = PARTIDOS_GRUPOS.find(p => p.id === partidoId);
+    const grupo   = partido?.grupo || null;
+    const partidosGrupo = grupo ? getPartidosPorGrupo(grupo) : [];
+    const grupoEstabaCompleto = grupo
+      ? partidosGrupo.every(p => _resultados[p.id]?.confirmado)
+      : false;
 
     // 1. Borrar el documento de resultado
     await deleteDoc(doc(db, 'resultados', partidoId));
@@ -418,7 +436,13 @@ window._ejecutarBorradoRes = async (partidoId) => {
     // 3. Actualizar localmente
     delete _resultados[partidoId];
 
-    // 4. Recalcular totales de clasificación sin este partido
+    // 4. Si el grupo estaba completo antes del borrado, eliminar los puntos
+    //    de clasificados de ese grupo para todos los jugadores
+    if (grupoEstabaCompleto && grupo) {
+      await borrarPuntosClasificadosGrupo(grupo);
+    }
+
+    // 5. Recalcular totales de clasificación
     await recalcularTotales();
 
     window.mostrarToast('✅ Resultado y puntos borrados');
@@ -445,7 +469,7 @@ async function calcularClasificados() {
     });
 
     // ── 2. Extraer 1º y 2º de cada grupo ────────────────────
-    const primeros  = {};  // { A: {nombre, flag, grupoCompleto}, ... }
+    const primeros  = {};
     const segundos  = {};
     const terceros  = {};
 
@@ -460,41 +484,22 @@ async function calcularClasificados() {
     });
 
     // ── 3. Mapeo oficial FIFA — 16 partidos de r32 ──────────
-    // Fuente: Wikipedia 2026 FIFA World Cup knockout stage
-    // Matches 73-88 en orden cronológico
-    // Los 8 partidos con tercero se dejan como null (se asignan manualmente desde admin)
     const crucesFijos = [
-      // r32_1  Match 73: 2º A vs 2º B
       { id: 'r32_1',  local: segundos['A'], visitante: segundos['B'] },
-      // r32_2  Match 74: 1º E vs Mejor 3º (A/B/C/D/F) → tercero null
       { id: 'r32_2',  local: primeros['E'], visitante: null },
-      // r32_3  Match 75: 1º F vs 2º C
       { id: 'r32_3',  local: primeros['F'], visitante: segundos['C'] },
-      // r32_4  Match 76: 1º C vs 2º F
       { id: 'r32_4',  local: primeros['C'], visitante: segundos['F'] },
-      // r32_5  Match 77: 1º I vs Mejor 3º (C/D/F/G/H) → tercero null
       { id: 'r32_5',  local: primeros['I'], visitante: null },
-      // r32_6  Match 78: 2º E vs 2º I
       { id: 'r32_6',  local: segundos['E'], visitante: segundos['I'] },
-      // r32_7  Match 79: 1º A vs Mejor 3º (C/E/F/H/I) → tercero null
       { id: 'r32_7',  local: primeros['A'], visitante: null },
-      // r32_8  Match 80: 1º L vs Mejor 3º (E/H/I/J/K) → tercero null
       { id: 'r32_8',  local: primeros['L'], visitante: null },
-      // r32_9  Match 81: 1º D vs Mejor 3º (B/E/F/I/J) → tercero null
       { id: 'r32_9',  local: primeros['D'], visitante: null },
-      // r32_10 Match 82: 1º G vs Mejor 3º (A/E/H/I/J) → tercero null
       { id: 'r32_10', local: primeros['G'], visitante: null },
-      // r32_11 Match 83: 2º K vs 2º L
       { id: 'r32_11', local: segundos['K'], visitante: segundos['L'] },
-      // r32_12 Match 84: 1º H vs 2º J
       { id: 'r32_12', local: primeros['H'], visitante: segundos['J'] },
-      // r32_13 Match 85: 1º B vs Mejor 3º (E/F/G/I/J) → tercero null
       { id: 'r32_13', local: primeros['B'], visitante: null },
-      // r32_14 Match 86: 1º J vs 2º H
       { id: 'r32_14', local: primeros['J'], visitante: segundos['H'] },
-      // r32_15 Match 87: 1º K vs Mejor 3º (D/E/I/J/L) → tercero null
       { id: 'r32_15', local: primeros['K'], visitante: null },
-      // r32_16 Match 88: 2º D vs 2º G
       { id: 'r32_16', local: segundos['D'], visitante: segundos['G'] },
     ];
 
@@ -505,9 +510,6 @@ async function calcularClasificados() {
       const eqL = cruce.local;
       const eqV = cruce.visitante;
 
-      // Un partido está "confirmado" si los grupos de ambos equipos
-      // están completos. Si algún visitante es null (tercero pendiente),
-      // el partido NO está confirmado hasta que el admin lo asigne.
       const localConfirmado   = eqL?.grupoCompleto ?? false;
       const visitanteNulo     = eqV === null;
       const visitanteConf     = eqV?.grupoCompleto ?? false;
@@ -532,7 +534,6 @@ async function calcularClasificados() {
         .forEach(c => {
           const existente = actual[c.id];
           if (existente?.equipoVisitante) {
-            // Conservar el tercero ya asignado manualmente
             bracket[c.id].equipoVisitante  = existente.equipoVisitante;
             bracket[c.id].flagVisitante    = existente.flagVisitante || '';
             bracket[c.id].terceroPendiente = false;
@@ -545,14 +546,12 @@ async function calcularClasificados() {
 
     await setDoc(doc(db, 'config', 'bracket_eliminatorias'), bracket, { merge: true });
 
-    // Feedback al admin con resumen
     const pendientes = crucesFijos.filter(c => c.visitante === null).length;
     const msg = pendientes > 0
       ? `✅ Clasificados calculados · ${pendientes} terceros pendientes de asignar en admin`
       : '✅ Bracket completo calculado';
     window.mostrarToast(msg, 5000);
 
-    // Re-renderizar para actualizar el contador
     const c = document.getElementById('resultadosTabContent');
     if (c) renderAdmin(c);
 
@@ -582,9 +581,6 @@ window._ejecutarBorradoClasificados = async () => {
     window.appCerrarModal();
     window.mostrarToast('🗑️ Borrando bracket...');
 
-    const { deleteDoc } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
-    );
     await deleteDoc(doc(db, 'config', 'bracket_eliminatorias'));
 
     window.mostrarToast('✅ Bracket borrado');
@@ -596,12 +592,11 @@ window._ejecutarBorradoClasificados = async () => {
   }
 };
 
-// ── Calcular tabla de un grupo a partir de resultados confirmados
+// ── Calcular tabla de un grupo a partir de resultados confirmados ──
 function calcularTablaGrupo(grupo) {
   const partidos = getPartidosPorGrupo(grupo);
   const equiposMap = {};
 
-  // Inicializar equipos desde los partidos
   partidos.forEach(p => {
     if (!equiposMap[p.local]) {
       equiposMap[p.local] = { nombre: p.local, flag: p.flagLocal, pts: 0, gf: 0, gc: 0, j: 0 };
@@ -611,7 +606,6 @@ function calcularTablaGrupo(grupo) {
     }
   });
 
-  // Calcular estadísticas con resultados confirmados
   partidos.forEach(p => {
     const res = _resultados[p.id];
     if (!res?.confirmado) return;
@@ -636,7 +630,56 @@ function calcularTablaGrupo(grupo) {
     }
   });
 
-  // Ordenar: Pts → GD → GF → nombre (alfabético como desempate provisional)
+  return Object.values(equiposMap).sort((a, b) => {
+    const ptsDiff = b.pts - a.pts;
+    if (ptsDiff !== 0) return ptsDiff;
+    const gdA = a.gf - a.gc;
+    const gdB = b.gf - b.gc;
+    const gdDiff = gdB - gdA;
+    if (gdDiff !== 0) return gdDiff;
+    const gfDiff = b.gf - a.gf;
+    if (gfDiff !== 0) return gfDiff;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
+// ── Calcular tabla de un grupo a partir de las predicciones de un jugador ──
+// predJugador: { [partidoId]: { local: number, visitante: number } }
+function calcularTablaGrupoDesdePredicciones(grupo, predJugador) {
+  const partidos = getPartidosPorGrupo(grupo);
+  const equiposMap = {};
+
+  partidos.forEach(p => {
+    if (!equiposMap[p.local]) {
+      equiposMap[p.local] = { nombre: p.local, pts: 0, gf: 0, gc: 0 };
+    }
+    if (!equiposMap[p.visitante]) {
+      equiposMap[p.visitante] = { nombre: p.visitante, pts: 0, gf: 0, gc: 0 };
+    }
+  });
+
+  partidos.forEach(p => {
+    const pred = predJugador[p.id];
+    if (!pred) return;
+    const gl = parseInt(pred.local);
+    const gv = parseInt(pred.visitante);
+    if (isNaN(gl) || isNaN(gv)) return;
+
+    equiposMap[p.local].gf    += gl;
+    equiposMap[p.local].gc    += gv;
+    equiposMap[p.visitante].gf += gv;
+    equiposMap[p.visitante].gc += gl;
+
+    if (gl > gv) {
+      equiposMap[p.local].pts    += 3;
+    } else if (gl === gv) {
+      equiposMap[p.local].pts    += 1;
+      equiposMap[p.visitante].pts += 1;
+    } else {
+      equiposMap[p.visitante].pts += 3;
+    }
+  });
+
   return Object.values(equiposMap).sort((a, b) => {
     const ptsDiff = b.pts - a.pts;
     if (ptsDiff !== 0) return ptsDiff;
@@ -651,19 +694,177 @@ function calcularTablaGrupo(grupo) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  CÁLCULO DE PUNTOS (trigger al confirmar resultado)
+//  PUNTOS DE CLASIFICADOS DE GRUPO (1º y 2º predicho que pasa)
+// ══════════════════════════════════════════════════════════════
+
+async function recalcularPuntosClasificados(grupo) {
+  try {
+    // 1. Tabla real del grupo (ya completo)
+    const tablaReal = calcularTablaGrupo(grupo);
+    const reales    = new Set([tablaReal[0]?.nombre, tablaReal[1]?.nombre].filter(Boolean));
+    if (reales.size === 0) return;
+
+    // 2. IDs de los partidos del grupo
+    const partidos    = getPartidosPorGrupo(grupo);
+    const partidoIds  = partidos.map(p => p.id);
+
+    // 3. Leer predicciones de todos los jugadores para este grupo
+    //    Firestore no soporta 'in' con más de 30 elementos, pero un grupo
+    //    tiene solo 3 partidos, así que hacemos una query por partido_id.
+    const predsPorUid = {}; // { uid: { partidoId: { local, visitante } } }
+
+    await Promise.all(partidoIds.map(async (pid) => {
+      const q    = query(collection(db, 'predicciones'), where('partido_id', '==', pid));
+      const snap = await getDocs(q);
+      snap.forEach(d => {
+        const data = d.data();
+        const uid  = data.uid;
+        if (!uid) return;
+        if (!predsPorUid[uid]) predsPorUid[uid] = {};
+        predsPorUid[uid][pid] = { local: data.local, visitante: data.visitante };
+      });
+    }));
+
+    // 4. Para cada jugador, calcular su tabla predicha y comparar con la real
+    const batch = [];
+
+    Object.entries(predsPorUid).forEach(([uid, predJugador]) => {
+      const tablaPredicha = calcularTablaGrupoDesdePredicciones(grupo, predJugador);
+      const predichos     = [tablaPredicha[0]?.nombre, tablaPredicha[1]?.nombre].filter(Boolean);
+
+      // Contar aciertos: equipo predicho como 1º o 2º que pasa como 1º o 2º real
+      let puntos = 0;
+      predichos.forEach(nombre => {
+        if (reales.has(nombre)) puntos += 1;
+      });
+
+      batch.push(
+        setDoc(
+          doc(db, 'puntos', `${uid}_${grupo}_clasificados`),
+          {
+            uid,
+            grupo,
+            puntos,
+            tipo:      'clasificados',
+            timestamp: serverTimestamp()
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await Promise.all(batch);
+    await recalcularTotales();
+
+    console.log(`[clasificados] Grupo ${grupo}: puntos calculados para ${Object.keys(predsPorUid).length} jugadores`);
+  } catch (e) {
+    console.error(`[recalcularPuntosClasificados] Grupo ${grupo}:`, e);
+  }
+}
+
+// ── Borrar puntos de clasificados de un grupo para todos los jugadores ──
+async function borrarPuntosClasificadosGrupo(grupo) {
+  try {
+    const q    = query(
+      collection(db, 'puntos'),
+      where('tipo', '==', 'clasificados'),
+      where('grupo', '==', grupo)
+    );
+    const snap = await getDocs(q);
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    console.log(`[clasificados] Puntos del grupo ${grupo} borrados (${snap.size} documentos)`);
+  } catch (e) {
+    console.error(`[borrarPuntosClasificadosGrupo] Grupo ${grupo}:`, e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PUNTOS DE TERCEROS — trigger desde admin bracket
+//  (exportada para que admin.js la llame al asignar los 8 terceros)
+// ══════════════════════════════════════════════════════════════
+
+export async function recalcularPuntosTerceros() {
+  try {
+    // 1. Leer los 8 terceros oficiales del bracket
+    const bracketSnap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
+    if (!bracketSnap.exists()) return;
+
+    const bracket = bracketSnap.data();
+    const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
+    const tercerosOficiales = new Set(
+      IDS_TERCEROS
+        .map(id => bracket[id]?.equipoVisitante)
+        .filter(Boolean)
+    );
+
+    // Solo calcular si los 8 terceros están asignados
+    if (tercerosOficiales.size < 8) {
+      console.log('[puntosTerceros] Aún no están los 8 terceros asignados, se omite el cálculo');
+      return;
+    }
+
+    // 2. Leer todas las predicciones de terceros
+    const predSnap = await getDocs(collection(db, 'pred_terceros'));
+
+    const batch = [];
+    predSnap.forEach(d => {
+      const data    = d.data();
+      const uid     = data.uid;
+      const equipos = data.equipos || [];
+      if (!uid) return;
+
+      let puntos = 0;
+      equipos.forEach(nombre => {
+        if (tercerosOficiales.has(nombre)) puntos += 0.5;
+      });
+
+      batch.push(
+        setDoc(
+          doc(db, 'puntos', `${uid}_terceros`),
+          {
+            uid,
+            puntos,
+            tipo:      'terceros',
+            timestamp: serverTimestamp()
+          },
+          { merge: true }
+        )
+      );
+    });
+
+    await Promise.all(batch);
+    await recalcularTotales();
+
+    console.log(`[puntosTerceros] Puntos calculados para ${predSnap.size} jugadores`);
+  } catch (e) {
+    console.error('[recalcularPuntosTerceros]', e);
+  }
+}
+
+// ── Borrar puntos de terceros de todos los jugadores ──────────
+export async function borrarPuntosTerceros() {
+  try {
+    const q    = query(collection(db, 'puntos'), where('tipo', '==', 'terceros'));
+    const snap = await getDocs(q);
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    await recalcularTotales();
+    console.log(`[puntosTerceros] ${snap.size} documentos borrados`);
+  } catch (e) {
+    console.error('[borrarPuntosTerceros]', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CÁLCULO DE PUNTOS (trigger al confirmar resultado de partido)
 // ══════════════════════════════════════════════════════════════
 
 async function recalcularPuntos(partidoId, golesLocal, golesVisitante) {
   try {
-    const { query, where, getDocs: gd } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
-    );
     const q = query(
       collection(db, 'predicciones'),
       where('partido_id', '==', partidoId)
     );
-    const snap = await gd(q);
+    const snap = await getDocs(q);
 
     const batch = [];
     snap.forEach(d => {
