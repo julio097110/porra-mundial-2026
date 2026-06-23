@@ -2,7 +2,7 @@
 //  js/admin.js
 //  Panel de administración
 //  Secciones: resumen, jugadores, predicciones, fechas, pagos,
-//             emails, info, especiales, bracket
+//             emails, info, especiales, bracket, integridad
 // ============================================================
 
 import { db } from './firebase-config.js';
@@ -18,7 +18,7 @@ import {
   eliminarUsuarioFirestore, obtenerTodosUsuarios
 } from './auth.js';
 import { GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
-import { calcularPuntosPartido } from './resultados.js';
+import { calcularPuntosPartido, recalcularPuntosTerceros, borrarPuntosTerceros } from './resultados.js';
 import { calcularPuntosPartidoElim } from './resultados_elim.js';
 
 // ── Estado ────────────────────────────────────────────────────
@@ -346,11 +346,15 @@ function renderPrediccionesAdmin() {
 function renderFechas() {
   const fg = _config.fecha_limite_grupos        || '2026-06-11T00:00';
   const fe = _config.fecha_limite_eliminatorias || '2026-06-28T15:00';
+  const ft = _config.fecha_limite_terceros      || '2026-07-24T20:30';
 
   const fgStr = fechaAInput(fg);
   const feStr = fechaAInput(fe);
+  const ftStr = fechaAInput(ft);
+
   const fgPasada = new Date(fg) < new Date();
   const fePasada = new Date(fe) < new Date();
+  const ftPasada = new Date(ft) < new Date();
 
   return `
     <div>
@@ -384,6 +388,19 @@ function renderFechas() {
               value="${feStr}">
             <span class="fecha-status ${fePasada ? 'fecha-closed' : 'fecha-open'}">
               ${fePasada ? t('admin.dates.closed') : t('admin.dates.open')}
+            </span>
+          </div>
+
+          <div class="fecha-row">
+            <span class="fecha-icon">🥉</span>
+            <div class="fecha-info">
+              <div class="fecha-label">${t('admin.dates.thirdPlace')}</div>
+              <div class="fecha-sub">${t('admin.dates.thirdPlaceSub')}</div>
+            </div>
+            <input class="fecha-input" type="datetime-local" id="inputFechaTerceros"
+              value="${ftStr}">
+            <span class="fecha-status ${ftPasada ? 'fecha-closed' : 'fecha-open'}">
+              ${ftPasada ? t('admin.dates.closed') : t('admin.dates.open')}
             </span>
           </div>
 
@@ -699,7 +716,6 @@ function renderEspecialesAdmin() {
 // ══════════════════════════════════════════════════════════════
 
 function renderBracketAdmin() {
-  // Los 8 partidos de r32 que requieren un tercer clasificado
   const partidosConTercero = [
     { id: 'r32_2',  local: '1º Grupo E', desc: 'Mejor 3º (A/B/C/D/F)',  grupos: ['A','B','C','D','F'] },
     { id: 'r32_5',  local: '1º Grupo I', desc: 'Mejor 3º (C/D/F/G/H)',  grupos: ['C','D','F','G','H'] },
@@ -711,7 +727,6 @@ function renderBracketAdmin() {
     { id: 'r32_15', local: '1º Grupo K', desc: 'Mejor 3º (D/E/I/J/L)',  grupos: ['D','E','I','J','L'] },
   ];
 
-  // Calcular qué terceros están disponibles (grupo con 3 partidos confirmados)
   const tercerosDisponibles = {};
   GRUPOS.forEach(g => {
     const partidos      = getPartidosPorGrupo(g);
@@ -754,7 +769,6 @@ function renderBracketAdmin() {
     const flagActual    = actual?.flagVisitante   || '';
     const pendiente     = !equipoActual;
 
-    // Opciones del select: solo terceros de grupos elegibles Y completos
     const opciones = p.grupos.map(g => {
       const tercero = tercerosDisponibles[g];
       if (!tercero.nombre) return null;
@@ -811,7 +825,6 @@ function renderBracketAdmin() {
   return html;
 }
 
-// ── Calcular tabla de un grupo para obtener el tercero ────────
 function calcularTablaGrupoAdmin(grupo) {
   const partidos = getPartidosPorGrupo(grupo);
   const equiposMap = {};
@@ -901,16 +914,7 @@ function modalJugador(uid = null) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  INTEGRIDAD — audita la colección 'puntos' en dos niveles:
-//   1) ¿la suma de 'puntos' de cada jugador coincide con el total
-//      guardado en 'clasificacion'?
-//   2) ¿esa suma coincide con lo que DEBERÍA ser, recalculando desde
-//      cero a partir de 'resultados' + 'predicciones' (grupos),
-//      'resultados_elim' + 'predicciones_elim' (eliminatorias) y
-//      'config/general' + 'pred_especiales' (campeón, subcampeón,
-//      MVP, goleador), usando las mismas funciones de cálculo que
-//      usa la app en producción?
-//  Solo lectura: nunca escribe nada en Firestore.
+//  INTEGRIDAD
 // ══════════════════════════════════════════════════════════════
 
 function renderIntegridad() {
@@ -999,10 +1003,8 @@ function renderResultadoIntegridad() {
     </div>`;
 }
 
-// ── Recalcula desde cero los puntos de un jugador para un conjunto
-//    de partidos de grupo, devolviendo el detalle por partido ──────
 function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo) {
-  const detalle = {}; // { partido_id: puntosRecalculados }
+  const detalle = {};
   Object.entries(resultadosGrupo).forEach(([partidoId, res]) => {
     if (!res?.confirmado) return;
     const pred = prediccionesPorPartido[`${uid}_${partidoId}`];
@@ -1013,7 +1015,6 @@ function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGru
   return detalle;
 }
 
-// ── Recalcula desde cero los puntos de un jugador para eliminatorias ──
 function recalcularPuntosElimJugador(uid, prediccionesElimPorPartido, resultadosElim) {
   const detalle = {};
   Object.entries(resultadosElim).forEach(([partidoId, res]) => {
@@ -1027,13 +1028,9 @@ function recalcularPuntosElimJugador(uid, prediccionesElimPorPartido, resultados
 }
 
 async function verificarIntegridadPuntos() {
-  // 1. Sumar todos los documentos de 'puntos' agrupados por uid
-  //    (incluye tipo 'grupo', 'eliminatoria' y 'especial' juntos)
   const puntosSnap = await getDocs(collection(db, 'puntos'));
   const sumas = {};
-  // También guardamos el detalle por partido_id para poder comparar
-  // contra el recálculo y señalar exactamente dónde difiere.
-  const puntosGuardadosPorPartido = {}; // { uid: { partido_id: puntos } }
+  const puntosGuardadosPorPartido = {};
   puntosSnap.forEach(d => {
     const { uid, puntos, partido_id } = d.data();
     if (!uid) return;
@@ -1042,7 +1039,6 @@ async function verificarIntegridadPuntos() {
     puntosGuardadosPorPartido[uid][partido_id] = puntos || 0;
   });
 
-  // 2. Leer 'clasificacion' (total guardado por uid)
   const clasifSnap = await getDocs(collection(db, 'clasificacion'));
   const totales = {};
   clasifSnap.forEach(d => {
@@ -1051,22 +1047,18 @@ async function verificarIntegridadPuntos() {
     totales[uid] = total ?? 0;
   });
 
-  // 3. Cargar todo lo necesario para recalcular desde cero ─────────
-
-  // 3a. Grupos: resultados confirmados + predicciones de todos
   const resultadosGruposSnap = await getDocs(collection(db, 'resultados'));
   const resultadosGrupo = {};
   resultadosGruposSnap.forEach(d => { resultadosGrupo[d.id] = d.data(); });
 
   const prediccionesSnap = await getDocs(collection(db, 'predicciones'));
-  const prediccionesPorPartido = {}; // { `${uid}_${partido_id}`: pred }
+  const prediccionesPorPartido = {};
   prediccionesSnap.forEach(d => {
     const data = d.data();
     if (!data.uid || !data.partido_id) return;
     prediccionesPorPartido[`${data.uid}_${data.partido_id}`] = data;
   });
 
-  // 3b. Eliminatorias: resultados confirmados + predicciones de todos
   const resultadosElimSnap = await getDocs(collection(db, 'resultados_elim'));
   const resultadosElim = {};
   resultadosElimSnap.forEach(d => { resultadosElim[d.id] = d.data(); });
@@ -1081,7 +1073,6 @@ async function verificarIntegridadPuntos() {
 
   const elimSinDatos = Object.values(resultadosElim).every(r => !r?.confirmado);
 
-  // 3c. Especiales: MVP/goleador oficial + campeón/subcampeón real (final_1)
   const mvpOfi = _config.mvp_oficial      || '';
   const golOfi = _config.goleador_oficial || '';
 
@@ -1103,7 +1094,6 @@ async function verificarIntegridadPuntos() {
   const especialesPorUid = {};
   especialesSnap.forEach(d => { especialesPorUid[d.id] = d.data(); });
 
-  // 4. Recalcular por jugador ───────────────────────────────────────
   const todosUids = new Set([
     ...Object.keys(sumas),
     ...Object.keys(totales),
@@ -1116,7 +1106,6 @@ async function verificarIntegridadPuntos() {
     const suma = sumas[uid] ?? 0;
     const total = Object.prototype.hasOwnProperty.call(totales, uid) ? totales[uid] : null;
 
-    // Recalculado: grupos + eliminatorias + especiales
     const detalleGrupo = recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo);
     const detalleElim   = recalcularPuntosElimJugador(uid, prediccionesElimPorPartido, resultadosElim);
 
@@ -1139,10 +1128,6 @@ async function verificarIntegridadPuntos() {
     const detalleCompleto = { ...detalleGrupo, ...detalleElim, ...puntosEspeciales };
     const recalculado = Object.values(detalleCompleto).reduce((a, b) => a + b, 0);
 
-    // Comparar partido a partido: guardado en 'puntos' vs recalculado.
-    // Solo se comparan partidos que SÍ entran en el recálculo (es decir,
-    // resultados confirmados / especiales con datos oficiales), para no
-    // marcar como discrepancia partidos que aún no tienen resultado.
     const guardadoPorPartido = puntosGuardadosPorPartido[uid] || {};
     const detalleDiscrepancias = Object.entries(detalleCompleto)
       .filter(([partidoId, valorRecalc]) => (guardadoPorPartido[partidoId] ?? 0) !== valorRecalc)
@@ -1159,7 +1144,6 @@ async function verificarIntegridadPuntos() {
     return { uid, nombre, suma, total, recalculado, detalleDiscrepancias, estado };
   });
 
-  // Ordenar: discrepancias primero, luego alfabético
   filas.sort((a, b) => {
     if (a.estado !== 'ok' && b.estado === 'ok') return -1;
     if (a.estado === 'ok' && b.estado !== 'ok') return 1;
@@ -1169,16 +1153,16 @@ async function verificarIntegridadPuntos() {
   return { filas, generadoEn: new Date(), elimSinDatos, especialesSinDatos };
 }
 
+// ══════════════════════════════════════════════════════════════
+//  HANDLERS
+// ══════════════════════════════════════════════════════════════
+
 function registrarHandlers() {
 
-  // Verificar integridad de puntos (solo lectura)
   window._adminVerificarIntegridad = async () => {
-    const btn = document.getElementById('btnCheckIntegridad');
+    const btn  = document.getElementById('btnCheckIntegridad');
     const cont = document.getElementById('integridadResultado');
-    if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = `🔄 ${t('admin.integrity.checking')}`;
-    }
+    if (btn) { btn.disabled = true; btn.innerHTML = `🔄 ${t('admin.integrity.checking')}`; }
     try {
       _integridad = await verificarIntegridadPuntos();
       if (cont) cont.innerHTML = renderResultadoIntegridad();
@@ -1186,44 +1170,29 @@ function registrarHandlers() {
       console.error('[verificarIntegridad]', e);
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = `🔍 ${t('admin.integrity.checkBtn')}`;
-      }
+      if (btn) { btn.disabled = false; btn.innerHTML = `🔍 ${t('admin.integrity.checkBtn')}`; }
     }
   };
 
-  // Paginación jugadores
   window._adminPagJug = (pag) => {
     _paginaJug = pag;
     document.getElementById('adminSeccion').innerHTML = renderSeccion();
     registrarHandlers();
   };
 
-  // Abrir modal añadir jugador
-  window._adminAnadirJugador = () => modalJugador();
+  window._adminAnadirJugador  = () => modalJugador();
+  window._adminEditarJugador  = (uid) => modalJugador(uid);
 
-  // Abrir modal editar jugador
-  window._adminEditarJugador = (uid) => modalJugador(uid);
-
-  // Guardar jugador (crear o editar)
   window._adminGuardarJugador = async (uid) => {
     const nombre = document.getElementById('mNombre')?.value?.trim();
     const idioma = document.getElementById('mIdioma')?.value || 'es';
 
-    if (!nombre) {
-      mostrarErrorModal('mNombreError', 'El nombre es obligatorio');
-      return;
-    }
+    if (!nombre) { mostrarErrorModal('mNombreError', 'El nombre es obligatorio'); return; }
 
     try {
       if (uid) {
-        // Editar: solo nombre e idioma
         const dispNombre = await verificarNombreDisponible(nombre, uid);
-        if (!dispNombre) {
-          mostrarErrorModal('mNombreError', t('admin.players.nameTaken'));
-          return;
-        }
+        if (!dispNombre) { mostrarErrorModal('mNombreError', t('admin.players.nameTaken')); return; }
         await updateDoc(doc(db, 'usuarios', uid), {
           nombre_visible:       nombre,
           nombre_visible_lower: nombre.toLowerCase(),
@@ -1231,47 +1200,30 @@ function registrarHandlers() {
         });
         window.mostrarToast('✅ Jugador actualizado');
       } else {
-        // Crear nuevo
         const email    = document.getElementById('mEmail')?.value?.trim();
         const password = document.getElementById('mPass')?.value;
         const username = document.getElementById('mUser')?.value?.trim().toLowerCase();
-
-        if (!email || !password || !username) {
-          window.mostrarToast('⚠️ Rellena todos los campos', 4000);
-          return;
-        }
-
+        if (!email || !password || !username) { window.mostrarToast('⚠️ Rellena todos los campos', 4000); return; }
         await crearUsuario({ email, password, nombre_visible: nombre, username, idioma });
         window.mostrarToast('✅ Jugador creado');
       }
-
       window.appCerrarModal();
       await cargarUsuarios();
       document.getElementById('adminSeccion').innerHTML = renderSeccion();
       registrarHandlers();
-
     } catch (e) {
-      if (e.message === 'nombre_taken') {
-        mostrarErrorModal('mNombreError', t('admin.players.nameTaken'));
-      } else if (e.message === 'username_taken') {
-        mostrarErrorModal('mUserError', t('admin.players.userTaken'));
-      } else {
-        window.mostrarToast('❌ ' + t('common.error'), 5000);
-        console.error('[guardarJugador]', e);
-      }
+      if (e.message === 'nombre_taken')    mostrarErrorModal('mNombreError', t('admin.players.nameTaken'));
+      else if (e.message === 'username_taken') mostrarErrorModal('mUserError', t('admin.players.userTaken'));
+      else { window.mostrarToast('❌ ' + t('common.error'), 5000); console.error('[guardarJugador]', e); }
     }
   };
 
-  // Eliminar jugador
   window._adminEliminarJugador = (uid, nombre) => {
     window.appAbrirModal(
       t('admin.players.deleteBtn'),
       `<p style="font-size:13px;">¿Seguro que quieres eliminar a <strong>${nombre}</strong>? Esta acción no se puede deshacer.</p>`,
-      `
-        <button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('common.cancel')}</button>
-        <button class="btn btn-danger" onclick="window._adminConfirmarEliminar('${uid}')">
-          🗑️ ${t('admin.players.deleteBtn')}
-        </button>`
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('common.cancel')}</button>
+       <button class="btn btn-danger" onclick="window._adminConfirmarEliminar('${uid}')">🗑️ ${t('admin.players.deleteBtn')}</button>`
     );
   };
 
@@ -1289,7 +1241,6 @@ function registrarHandlers() {
     }
   };
 
-  // Toggle pago
   window._adminTogglePago = async (uid, pagado) => {
     try {
       await marcarPago(uid, pagado);
@@ -1302,7 +1253,6 @@ function registrarHandlers() {
     }
   };
 
-  // Toggle porra llena
   window._adminTogglePorraLlena = () => {
     const toggle = document.getElementById('togglePorraLlena');
     if (!toggle) return;
@@ -1312,22 +1262,14 @@ function registrarHandlers() {
     _config.porra_llena = nuevoEstado;
   };
 
-  // Guardar enlaces de pago
   window._adminGuardarPagos = async () => {
     try {
       const revolut    = document.getElementById('inputRevolut')?.value?.trim();
       const vipps      = document.getElementById('inputVipps')?.value?.trim();
       const porraLlena = _config.porra_llena || false;
-
-      await setDoc(doc(db, 'config', 'general'), {
-        enlace_revolut: revolut,
-        enlace_vipps:   vipps,
-        porra_llena:    porraLlena
-      }, { merge: true });
-
+      await setDoc(doc(db, 'config', 'general'), { enlace_revolut: revolut, enlace_vipps: vipps, porra_llena: porraLlena }, { merge: true });
       _config.enlace_revolut = revolut;
       _config.enlace_vipps   = vipps;
-
       window.mostrarToast('✅ Configuración de pagos guardada');
     } catch (e) {
       console.error('[guardarPagos]', e);
@@ -1335,7 +1277,6 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar bote total
   window._adminGuardarBote = async () => {
     try {
       const bote = parseInt(document.getElementById('inputBote')?.value || '0');
@@ -1350,21 +1291,18 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar fechas límite — con modal de confirmación
+  // ── Guardar fechas límite — con modal de confirmación ────────
   window._adminGuardarFechas = () => {
     const fg = document.getElementById('inputFechaGrupos')?.value;
     const fe = document.getElementById('inputFechaElim')?.value;
+    const ft = document.getElementById('inputFechaTerceros')?.value;
 
-    if (!fg || !fe) {
-      window.mostrarToast('⚠️ Introduce ambas fechas', 4000);
+    if (!fg || !fe || !ft) {
+      window.mostrarToast('⚠️ Introduce todas las fechas', 4000);
       return;
     }
 
-    const fgLabel = new Date(fg).toLocaleString(undefined, {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-    const feLabel = new Date(fe).toLocaleString(undefined, {
+    const fmt = (v) => new Date(v).toLocaleString(undefined, {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
@@ -1376,31 +1314,38 @@ function registrarHandlers() {
          <div style="display:flex; justify-content:space-between; padding:8px 10px;
            background:var(--bg2,#f7faf2); border-radius:var(--radius); border:1px solid var(--gp,#dde8cc);">
            <span style="color:var(--tm);">⚽ ${t('admin.dates.confirmGroups')}</span>
-           <strong>${fgLabel}</strong>
+           <strong>${fmt(fg)}</strong>
          </div>
          <div style="display:flex; justify-content:space-between; padding:8px 10px;
            background:var(--bg2,#f7faf2); border-radius:var(--radius); border:1px solid var(--gp,#dde8cc);">
            <span style="color:var(--tm);">⚔️ ${t('admin.dates.confirmKO')}</span>
-           <strong>${feLabel}</strong>
+           <strong>${fmt(fe)}</strong>
+         </div>
+         <div style="display:flex; justify-content:space-between; padding:8px 10px;
+           background:var(--bg2,#f7faf2); border-radius:var(--radius); border:1px solid var(--gp,#dde8cc);">
+           <span style="color:var(--tm);">🥉 ${t('admin.dates.confirmThird')}</span>
+           <strong>${fmt(ft)}</strong>
          </div>
        </div>`,
       `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('common.cancel')}</button>
-       <button class="btn btn-primary" onclick="window._adminConfirmarFechas('${fg}','${fe}')">
+       <button class="btn btn-primary" onclick="window._adminConfirmarFechas('${fg}','${fe}','${ft}')">
          💾 ${t('admin.dates.confirmBtn')}
        </button>`
     );
   };
 
-  window._adminConfirmarFechas = async (fg, fe) => {
+  window._adminConfirmarFechas = async (fg, fe, ft) => {
     try {
       window.appCerrarModal();
       await setDoc(doc(db, 'config', 'general'), {
         fecha_limite_grupos:        new Date(fg).toISOString(),
-        fecha_limite_eliminatorias: new Date(fe).toISOString()
+        fecha_limite_eliminatorias: new Date(fe).toISOString(),
+        fecha_limite_terceros:      new Date(ft).toISOString()
       }, { merge: true });
 
       _config.fecha_limite_grupos        = new Date(fg).toISOString();
       _config.fecha_limite_eliminatorias = new Date(fe).toISOString();
+      _config.fecha_limite_terceros      = new Date(ft).toISOString();
 
       window.mostrarToast('✅ ' + t('admin.dates.saveBtn'));
       document.getElementById('adminSeccion').innerHTML = renderSeccion();
@@ -1411,7 +1356,6 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar mensaje info
   window._adminGuardarInfo = async () => {
     try {
       const es = document.getElementById('inputInfoES')?.value || '';
@@ -1424,21 +1368,13 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar corrección ortográfica
-  // Escribe en mvp_corregido/goleador_corregido sin tocar mvp/goleador original del usuario
   window._adminGuardarEsp = async (uid) => {
     try {
       const mvpCorr = document.getElementById(`mvp_${uid}`)?.value?.trim() || '';
       const golCorr = document.getElementById(`gol_${uid}`)?.value?.trim() || '';
-      await updateDoc(doc(db, 'pred_especiales', uid), {
-        mvp_corregido:      mvpCorr,
-        goleador_corregido: golCorr
-      });
+      await updateDoc(doc(db, 'pred_especiales', uid), { mvp_corregido: mvpCorr, goleador_corregido: golCorr });
       const idx = _especiales.findIndex(e => e.uid === uid);
-      if (idx !== -1) {
-        _especiales[idx].mvp_corregido      = mvpCorr;
-        _especiales[idx].goleador_corregido = golCorr;
-      }
+      if (idx !== -1) { _especiales[idx].mvp_corregido = mvpCorr; _especiales[idx].goleador_corregido = golCorr; }
       window.mostrarToast('✅ Corrección guardada');
     } catch (e) {
       console.error('[guardarEsp]', e);
@@ -1446,16 +1382,11 @@ function registrarHandlers() {
     }
   };
 
-  // Guardar MVP oficial y goleador oficial del torneo
   window._adminGuardarOficial = async () => {
     try {
       const mvpOfi = document.getElementById('mvpOficial')?.value?.trim() || '';
       const golOfi = document.getElementById('golOficial')?.value?.trim() || '';
-      await setDoc(
-        doc(db, 'config', 'general'),
-        { mvp_oficial: mvpOfi, goleador_oficial: golOfi },
-        { merge: true }
-      );
+      await setDoc(doc(db, 'config', 'general'), { mvp_oficial: mvpOfi, goleador_oficial: golOfi }, { merge: true });
       _config.mvp_oficial      = mvpOfi;
       _config.goleador_oficial = golOfi;
       window.mostrarToast('✅ Resultado oficial guardado');
@@ -1467,72 +1398,34 @@ function registrarHandlers() {
     }
   };
 
-  // Recalcular puntos de MVP y goleador para todos los jugadores
   window._adminRecalcularEspeciales = async () => {
     try {
       const mvpOfi = _config.mvp_oficial      || '';
       const golOfi = _config.goleador_oficial || '';
-
-      if (!mvpOfi && !golOfi) {
-        window.mostrarToast('⚠️ Primero guarda el MVP oficial y/o el goleador oficial', 4000);
-        return;
-      }
+      if (!mvpOfi && !golOfi) { window.mostrarToast('⚠️ Primero guarda el MVP oficial y/o el goleador oficial', 4000); return; }
 
       window.mostrarToast('🔄 Calculando puntos especiales...');
-
-      // Normalización: minúsculas + sin acentos
-      const norm = str =>
-        (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-
+      const norm = str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
       const snap  = await getDocs(collection(db, 'pred_especiales'));
       const batch = [];
 
       snap.forEach(d => {
         const uid  = d.id;
         const data = d.data();
-
-        // Usar corregido si existe, si no el original del usuario
         const predMvp = norm(data.mvp_corregido || data.mvp || '');
         const predGol = norm(data.goleador_corregido || data.goleador || '');
-
         const ptosMvp = (mvpOfi && predMvp && norm(mvpOfi) === predMvp) ? 3 : 0;
         const ptosGol = (golOfi && predGol && norm(golOfi) === predGol) ? 3 : 0;
 
-        if (mvpOfi) {
-          batch.push(setDoc(
-            doc(db, 'puntos', `${uid}_especial_mvp`),
-            { uid, partido_id: 'especial_mvp', puntos: ptosMvp, tipo: 'especial', timestamp: serverTimestamp() },
-            { merge: true }
-          ));
-        }
-        if (golOfi) {
-          batch.push(setDoc(
-            doc(db, 'puntos', `${uid}_especial_goleador`),
-            { uid, partido_id: 'especial_goleador', puntos: ptosGol, tipo: 'especial', timestamp: serverTimestamp() },
-            { merge: true }
-          ));
-        }
+        if (mvpOfi) batch.push(setDoc(doc(db, 'puntos', `${uid}_especial_mvp`), { uid, partido_id: 'especial_mvp', puntos: ptosMvp, tipo: 'especial', timestamp: serverTimestamp() }, { merge: true }));
+        if (golOfi) batch.push(setDoc(doc(db, 'puntos', `${uid}_especial_goleador`), { uid, partido_id: 'especial_goleador', puntos: ptosGol, tipo: 'especial', timestamp: serverTimestamp() }, { merge: true }));
       });
 
       await Promise.all(batch);
-
-      // Recalcular totales globales
       const puntosSnap = await getDocs(collection(db, 'puntos'));
       const totales    = {};
-      puntosSnap.forEach(d => {
-        const { uid, puntos } = d.data();
-        if (!uid) return;
-        totales[uid] = (totales[uid] || 0) + (puntos || 0);
-      });
-      await Promise.all(
-        Object.entries(totales).map(([uid, total]) =>
-          setDoc(
-            doc(db, 'clasificacion', uid),
-            { uid, total, actualizado: serverTimestamp() },
-            { merge: true }
-          )
-        )
-      );
+      puntosSnap.forEach(d => { const { uid, puntos } = d.data(); if (!uid) return; totales[uid] = (totales[uid] || 0) + (puntos || 0); });
+      await Promise.all(Object.entries(totales).map(([uid, total]) => setDoc(doc(db, 'clasificacion', uid), { uid, total, actualizado: serverTimestamp() }, { merge: true })));
 
       window.mostrarToast('✅ Puntos especiales recalculados correctamente');
     } catch (e) {
@@ -1541,7 +1434,6 @@ function registrarHandlers() {
     }
   };
 
-  // Ver predicciones de un jugador — abre un modal con el resumen
   window._adminVerPredicciones = async (uid, nombre) => {
     window.appAbrirModal(
       `👁️ Predicciones de ${nombre}`,
@@ -1554,7 +1446,6 @@ function registrarHandlers() {
         getDocs(query(collection(db, 'predicciones_elim'),where('uid', '==', uid))),
         getDoc(doc(db, 'pred_especiales', uid))
       ]);
-
       const nGrupos = gruposSnap.size;
       const nElim   = elimSnap.size;
       const esp     = espSnap.exists() ? espSnap.data() : {};
@@ -1563,9 +1454,7 @@ function registrarHandlers() {
         <div style="font-size:13px; display:flex; flex-direction:column; gap:10px;">
           <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
             <span style="color:var(--ts);">⚽ Predicciones de grupos</span>
-            <strong style="color:${nGrupos >= 72 ? 'var(--gl)' : nGrupos > 0 ? 'var(--gold)' : 'var(--r)'};">
-              ${nGrupos} / 72
-            </strong>
+            <strong style="color:${nGrupos >= 72 ? 'var(--gl)' : nGrupos > 0 ? 'var(--gold)' : 'var(--r)'};">${nGrupos} / 72</strong>
           </div>
           <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
             <span style="color:var(--ts);">⚔️ Predicciones de eliminatorias</span>
@@ -1577,37 +1466,25 @@ function registrarHandlers() {
               <span style="color:var(--tm);">🏆 Campeón:</span><strong>${esp.campeon    || '—'}</strong>
               <span style="color:var(--tm);">🥈 Subcampeón:</span><strong>${esp.subcampeon || '—'}</strong>
               <span style="color:var(--tm);">⭐ MVP:</span>
-              <strong>
-                ${esp.mvp || '—'}
-                ${esp.mvp_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.mvp_corregido})</span>` : ''}
-              </strong>
+              <strong>${esp.mvp || '—'}${esp.mvp_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.mvp_corregido})</span>` : ''}</strong>
               <span style="color:var(--tm);">⚽ Goleador:</span>
-              <strong>
-                ${esp.goleador || '—'}
-                ${esp.goleador_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.goleador_corregido})</span>` : ''}
-              </strong>
+              <strong>${esp.goleador || '—'}${esp.goleador_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.goleador_corregido})</span>` : ''}</strong>
             </div>
           </div>
         </div>`;
-
-      document.getElementById('modalFooter').innerHTML =
-        `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
+      document.getElementById('modalFooter').innerHTML = `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
     } catch (e) {
-      document.getElementById('modalBody').innerHTML =
-        `<div class="notice error">⚠️ ${t('common.error')}</div>`;
+      document.getElementById('modalBody').innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;
     }
   };
 
-  // Borrar predicciones de un jugador con confirmación
   window._adminBorrarPredJugador = (uid, nombre, tipo) => {
     const labels = { grupos: 'grupos', eliminatorias: 'eliminatorias', especiales: 'especiales' };
     window.appAbrirModal(
       `🗑️ Borrar predicciones de ${nombre}`,
       `<p style="font-size:13px;">¿Seguro que quieres borrar las predicciones de <strong>${nombre}</strong> de <strong>${labels[tipo]}</strong>? Esta acción no se puede deshacer.</p>`,
       `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
-       <button class="btn btn-danger" onclick="window._adminConfirmarBorradoPred('${uid}', '${nombre}', '${tipo}')">
-         🗑️ Sí, borrar
-       </button>`
+       <button class="btn btn-danger" onclick="window._adminConfirmarBorradoPred('${uid}', '${nombre}', '${tipo}')">🗑️ Sí, borrar</button>`
     );
   };
 
@@ -1615,18 +1492,18 @@ function registrarHandlers() {
     try {
       window.appCerrarModal();
       window.mostrarToast('🗑️ Borrando...');
-      const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { deleteDoc: dd } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
 
       if (tipo === 'grupos') {
-        const q    = query(collection(db, 'predicciones'), where('uid', '==', uid));
+        const q = query(collection(db, 'predicciones'), where('uid', '==', uid));
         const snap = await getDocs(q);
-        await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+        await Promise.all(snap.docs.map(d => dd(d.ref)));
       } else if (tipo === 'eliminatorias') {
-        const q    = query(collection(db, 'predicciones_elim'), where('uid', '==', uid));
+        const q = query(collection(db, 'predicciones_elim'), where('uid', '==', uid));
         const snap = await getDocs(q);
-        await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+        await Promise.all(snap.docs.map(d => dd(d.ref)));
       } else if (tipo === 'especiales') {
-        await deleteDoc(doc(db, 'pred_especiales', uid));
+        await dd(doc(db, 'pred_especiales', uid));
       }
 
       window.mostrarToast(`✅ Predicciones de ${nombre} borradas`);
@@ -1639,16 +1516,16 @@ function registrarHandlers() {
     }
   };
 
-  // ── Guardar terceros del bracket ──────────────────────────
+  // ── Guardar terceros del bracket y recalcular puntos ──────
   window._adminGuardarTerceros = async () => {
     try {
       window.mostrarToast('💾 Guardando terceros...');
 
-      const partidosConTercero = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
+      const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
       const updates = {};
       let cambios = 0;
 
-      partidosConTercero.forEach(id => {
+      IDS_TERCEROS.forEach(id => {
         const sel = document.getElementById(`sel_${id}`);
         if (!sel || !sel.value) return;
 
@@ -1660,7 +1537,6 @@ function registrarHandlers() {
         updates[`${id}.terceroPendiente`] = false;
         updates[`${id}.confirmado`]       = true;
 
-        // Actualizar cache local
         if (!_bracket[id]) _bracket[id] = {};
         _bracket[id].equipoVisitante  = nombre;
         _bracket[id].flagVisitante    = flag || '';
@@ -1676,7 +1552,16 @@ function registrarHandlers() {
 
       await setDoc(doc(db, 'config', 'bracket_eliminatorias'), updates, { merge: true });
 
-      window.mostrarToast(`✅ ${cambios} tercero${cambios > 1 ? 's' : ''} guardado${cambios > 1 ? 's' : ''}`);
+      // Si los 8 terceros están asignados, recalcular puntos de terceros
+      const todosAsignados = IDS_TERCEROS.every(id => _bracket[id]?.equipoVisitante);
+      if (todosAsignados) {
+        window.mostrarToast('🔄 Calculando puntos de terceros...');
+        await recalcularPuntosTerceros();
+        window.mostrarToast(`✅ ${cambios} tercero${cambios > 1 ? 's' : ''} guardado${cambios > 1 ? 's' : ''} · Puntos de terceros calculados`);
+      } else {
+        window.mostrarToast(`✅ ${cambios} tercero${cambios > 1 ? 's' : ''} guardado${cambios > 1 ? 's' : ''}`);
+      }
+
       document.getElementById('adminSeccion').innerHTML = renderSeccion();
       registrarHandlers();
 
@@ -1686,7 +1571,6 @@ function registrarHandlers() {
     }
   };
 
-  // ── Recargar bracket desde Firestore ─────────────────────
   window._adminRecargarBracket = async () => {
     window.mostrarToast('🔄 Recargando...');
     await Promise.all([cargarBracket(), cargarResultadosGrupos()]);
@@ -1705,13 +1589,8 @@ async function cargarUsuarios() {
   const predGruposSnap = await getDocs(collection(db, 'predicciones'));
   const predElimSnap   = await getDocs(collection(db, 'predicciones_elim'));
 
-  // Total de partidos del torneo: 72 de fase de grupos + 32 de eliminatorias.
-  // (Las predicciones especiales — campeón, subcampeón, MVP, goleador — NO
-  // cuentan para "completo": solo se exige tener rellenos los 104 partidos.)
   const TOTAL_PARTIDOS = 104;
 
-  // Contar predicciones de grupos por usuario, excluyendo el documento
-  // de desempates (id `${uid}_desempates`), que no es un partido.
   const conteo = {};
   predGruposSnap.forEach(d => {
     const data = d.data();
@@ -1719,8 +1598,6 @@ async function cargarUsuarios() {
     const uid = data.uid;
     if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
   });
-
-  // Sumar predicciones de eliminatorias por usuario
   predElimSnap.forEach(d => {
     const uid = d.data().uid;
     if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
@@ -1744,8 +1621,6 @@ async function cargarUsuarios() {
 async function cargarConfig() {
   const snap = await getDoc(doc(db, 'config', 'general'));
   _config = snap.exists() ? snap.data() : {};
-
-  // Cargar mensaje info
   const infoSnap = await getDoc(doc(db, 'config', 'info_content'));
   if (infoSnap.exists()) {
     _config.mensaje_es = infoSnap.data().mensaje_es || '';
@@ -1755,13 +1630,9 @@ async function cargarConfig() {
 
 async function cargarEmailLog() {
   try {
-    const snap = await getDocs(
-      query(collection(db, 'email_log'), orderBy('timestamp', 'desc'), limit(20))
-    );
+    const snap = await getDocs(query(collection(db, 'email_log'), orderBy('timestamp', 'desc'), limit(20)));
     _emails = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (e) {
-    _emails = [];
-  }
+  } catch (e) { _emails = []; }
 }
 
 async function cargarEspeciales() {
@@ -1771,18 +1642,14 @@ async function cargarEspeciales() {
       const u = _usuarios.find(u => u.uid === d.id);
       return { uid: d.id, nombre: u?.nombre_visible || '—', ...d.data() };
     });
-  } catch (e) {
-    _especiales = [];
-  }
+  } catch (e) { _especiales = []; }
 }
 
 async function cargarBracket() {
   try {
     const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
     _bracket = snap.exists() ? snap.data() : {};
-  } catch (e) {
-    _bracket = {};
-  }
+  } catch (e) { _bracket = {}; }
 }
 
 async function cargarResultadosGrupos() {
@@ -1790,9 +1657,7 @@ async function cargarResultadosGrupos() {
     const snap = await getDocs(collection(db, 'resultados'));
     _resultadosGrupos = {};
     snap.forEach(d => { _resultadosGrupos[d.id] = d.data(); });
-  } catch (e) {
-    _resultadosGrupos = {};
-  }
+  } catch (e) { _resultadosGrupos = {}; }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1803,9 +1668,7 @@ function formatFechaLimite(campo) {
   if (!campo) return '—';
   try {
     const d = new Date(campo);
-    return d.toLocaleString(undefined, {
-      day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'
-    });
+    return d.toLocaleString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   } catch { return '—'; }
 }
 
@@ -1813,9 +1676,7 @@ function formatFecha(ts) {
   if (!ts) return '—';
   try {
     const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleString(undefined, {
-      day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'
-    });
+    return d.toLocaleString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   } catch { return '—'; }
 }
 
