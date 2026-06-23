@@ -1044,6 +1044,8 @@ function renderMimimi() {
       </div>
     </div>`;
 }
+
+function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo) {
   const detalle = {};
   Object.entries(resultadosGrupo).forEach(([partidoId, res]) => {
     if (!res?.confirmado) return;
