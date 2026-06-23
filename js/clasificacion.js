@@ -414,8 +414,8 @@ function renderCriterios(bote, p1, p2, p3) {
         <span class="criteria-pts">${t('standings.pts.groupThrough')}</span>
       </div>
       <div class="criteria-row">
-        <span class="criteria-text">${t('standings.criteria.groupTie')}</span>
-        <span class="criteria-pts">${t('standings.pts.groupTie')}</span>
+        <span class="criteria-text">${t('standings.criteria.thirdPlace')}</span>
+        <span class="criteria-pts">${t('standings.pts.thirdPlace')}</span>
       </div>
       <div class="criteria-row">
         <span class="criteria-text">${t('standings.criteria.koWinner')}</span>
@@ -473,4 +473,3 @@ function renderCriterios(bote, p1, p2, p3) {
       `}
     </div>`;
 }
-
