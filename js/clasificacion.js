@@ -97,6 +97,7 @@ async function cargarRanking() {
         nombre:  u.nombre_visible || u.username || '—',
         total:   puntos[uid] || 0,
         pagado:  u.pagado || false,
+        mimimi:  u.mimimi || false,
         esYo:    uid === _app.uid
       }))
       .sort((a, b) => {
@@ -386,6 +387,7 @@ function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
       <div class="s-pos ${posClass}">${pos}</div>
       <div class="s-name">
         <span class="s-name-text">${medallaEmoji ? medallaEmoji + ' ' : ''}${jugador.nombre}</span>
+        ${jugador.mimimi ? `<span style="font-size:10px; color:var(--r); font-style:italic; margin-left:4px;">— Mimimimi yo quiero la porra así</span>` : ''}
         ${!jugador.pagado ? `<span class="s-unpaid-tag">(${t('standings.unpaid')})</span>` : ''}
         ${jugador.esYo ? `<span class="s-you">${t('standings.you')}</span>` : ''}
       </div>
