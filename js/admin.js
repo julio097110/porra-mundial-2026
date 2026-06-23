@@ -89,6 +89,7 @@ function renderAdmin(contenedor) {
         ${menuItem('bracket',      '🏆', 'Bracket',
           Object.values(_bracket).filter(p => p?.terceroPendiente).length || 0)}
         ${menuItem('integridad',   '🔍', t('admin.integrity.title'))}
+        ${menuItem('mimimi',       '😭', 'Mimimi')}
       </div>
 
       <!-- Contenido -->
@@ -135,6 +136,7 @@ function renderSeccion() {
     case 'especiales':    return renderEspecialesAdmin();
     case 'bracket':       return renderBracketAdmin();
     case 'integridad':    return renderIntegridad();
+    case 'mimimi':        return renderMimimi();
     default:              return renderResumen();
   }
 }
@@ -1003,7 +1005,45 @@ function renderResultadoIntegridad() {
     </div>`;
 }
 
-function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo) {
+// ══════════════════════════════════════════════════════════════
+//  MIMIMI
+// ══════════════════════════════════════════════════════════════
+
+function renderMimimi() {
+  return `
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--gd); letter-spacing:1px; margin-bottom:4px;">
+        😭 Mimimi
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:16px;">
+        Marca a los jugadores que se quejan de cómo está montada la porra. Su nombre aparecerá acompañado del correspondiente aviso en la clasificación.
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+          ${_usuarios.map(u => {
+            const mimimi = u.mimimi || false;
+            return `
+              <label style="display:flex; align-items:center; gap:12px; cursor:pointer;
+                padding:10px 12px; border-radius:var(--radius);
+                border:1px solid ${mimimi ? 'var(--r)' : 'var(--gp)'};
+                background:${mimimi ? 'var(--rp,#fdf2f0)' : '#fff'};
+                transition: all .15s;">
+                <input type="checkbox" ${mimimi ? 'checked' : ''}
+                  onchange="window._adminToggleMimimi('${u.uid}', this.checked)"
+                  style="accent-color:var(--r); width:18px; height:18px; flex-shrink:0;">
+                <span style="font-size:13px; font-weight:600; color:var(--gd); flex:1;">
+                  ${u.nombre_visible}
+                </span>
+                ${mimimi ? `<span style="font-size:11px; color:var(--r); font-style:italic;">
+                  Mimimimi yo quiero la porra así
+                </span>` : ''}
+              </label>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
   const detalle = {};
   Object.entries(resultadosGrupo).forEach(([partidoId, res]) => {
     if (!res?.confirmado) return;
@@ -1578,6 +1618,22 @@ function registrarHandlers() {
     registrarHandlers();
     window.mostrarToast('✅ Bracket actualizado');
   };
+
+  // ── Mimimi ────────────────────────────────────────────────
+  window._adminToggleMimimi = async (uid, mimimi) => {
+    try {
+      await updateDoc(doc(db, 'usuarios', uid), { mimimi });
+      const u = _usuarios.find(u => u.uid === uid);
+      if (u) u.mimimi = mimimi;
+      // Re-renderizar la sección para reflejar el cambio visualmente
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+      window.mostrarToast(mimimi ? '😭 Mimimi activado' : '✅ Mimimi desactivado');
+    } catch (e) {
+      console.error('[toggleMimimi]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1613,6 +1669,7 @@ async function cargarUsuarios() {
       idioma:       data.idioma   || 'es',
       rol:          data.rol      || 'jugador',
       pagado:       data.pagado   || false,
+      mimimi:       data.mimimi   || false,
       estadoPred:   n === 0 ? 'ninguno' : n < TOTAL_PARTIDOS ? 'parcial' : 'completo'
     };
   }).sort((a, b) => a.nombre_visible.localeCompare(b.nombre_visible));
