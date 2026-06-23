@@ -499,45 +499,20 @@ function renderTerceros(contenedor) {
   const cerrado  = !_plazoTerceros;
   const fechaStr = formatFechaLimite(_config.fecha_limite_terceros);
 
-  // Calcular la lista de terceros según las predicciones de grupos del jugador
-  // Para cada grupo, obtenemos el equipo que el jugador tiene en posición 3
-  const tercerosPredichos = GRUPOS.map(g => {
-    const partidos = getPartidosPorGrupo(g);
-    const equipos  = obtenerEquiposGrupo(g);
-    const tabla    = calcularTablaGrupo(g, partidos, equipos);
-    const tercero  = tabla[2];
-    if (!tercero || tercero.j === 0) return null;
-    return {
-      nombre: tercero.nombre,
-      flag:   tercero.flag,
-      pts:    tercero.pts,
-      grupo:  g
-    };
-  }).filter(Boolean);
-
-  // Ordenar por puntos (mayor a menor), luego por grupo alfabético
-  tercerosPredichos.sort((a, b) => {
-    if (b.pts !== a.pts) return b.pts - a.pts;
-    return a.grupo.localeCompare(b.grupo);
+  const seleccionados = _predTerceros.length;
+  // Mapa grupo → equipo seleccionado por el jugador en ese grupo
+  const selPorGrupo = {};
+  _predTerceros.forEach(nombre => {
+    const partido = PARTIDOS_GRUPOS.find(p => p.local === nombre || p.visitante === nombre);
+    if (partido) selPorGrupo[partido.grupo] = nombre;
   });
 
-  const seleccionados = _predTerceros.length;
   const plazoInfo = cerrado
     ? `<div class="notice locked">🔒 ${t('thirdPlace.closedNotice')}</div>`
     : `<div class="notice">🔓 ${t('thirdPlace.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`;
 
-  if (tercerosPredichos.length < 8 && !cerrado) {
-    contenedor.innerHTML = `
-      ${plazoInfo}
-      <div class="notice warn" style="margin-top:8px;">
-        ⚠️ ${t('thirdPlace.noThirds')}
-      </div>`;
-    return;
-  }
-
-  // Vista bloqueada: mostrar selección + resultado oficial si existe
+  // ── Vista bloqueada ────────────────────────────────────────
   if (cerrado) {
-    // Leer los 8 terceros oficiales del bracket si existen
     const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
     const tercerosOficiales = new Set(
       IDS_TERCEROS.map(id => _bracket[id]?.equipoVisitante).filter(Boolean)
@@ -549,17 +524,15 @@ function renderTerceros(contenedor) {
     if (_predTerceros.length === 0) {
       html += `<div class="notice" style="margin-top:8px; color:var(--tm);">No guardaste ninguna selección de mejores terceros.</div>`;
     } else {
-      html += `
-        <div style="margin-top:12px;">
-          <div style="font-size:13px; font-weight:600; color:var(--gd); margin-bottom:10px;">
-            🥉 ${t('thirdPlace.title')} — ${t('specials.locked')}
-          </div>`;
+      html += `<div style="margin-top:12px;">
+        <div style="font-size:13px; font-weight:600; color:var(--gd); margin-bottom:10px;">
+          🥉 ${t('thirdPlace.title')} — ${t('specials.locked')}
+        </div>`;
 
       if (hayOficiales) {
-        html += `
-          <div style="font-size:11px; color:var(--tm); margin-bottom:8px;">
-            ${t('thirdPlace.officialThirds')}: ${[...tercerosOficiales].join(', ')}
-          </div>`;
+        html += `<div style="font-size:11px; color:var(--tm); margin-bottom:8px;">
+          ${t('thirdPlace.officialThirds')}: ${[...tercerosOficiales].join(', ')}
+        </div>`;
       }
 
       _predTerceros.forEach(nombre => {
@@ -568,7 +541,6 @@ function renderTerceros(contenedor) {
         const esCorrecto = tercerosOficiales.has(nombre);
         const icono = hayOficiales ? (esCorrecto ? '✅' : '❌') : '⏳';
         const color = hayOficiales ? (esCorrecto ? 'var(--gl)' : 'var(--r)') : 'var(--tm)';
-
         html += `
           <div style="display:flex; align-items:center; gap:10px; padding:8px 10px;
             border:1px solid ${esCorrecto && hayOficiales ? 'var(--gl)' : '#eee'};
@@ -586,14 +558,12 @@ function renderTerceros(contenedor) {
 
       if (hayOficiales) {
         const aciertos = _predTerceros.filter(n => tercerosOficiales.has(n)).length;
-        const puntosTotal = aciertos * 0.5;
         html += `
           <div style="margin-top:12px; padding:10px 14px; background:var(--gg); border:1px solid var(--gp);
             border-radius:var(--radius); font-size:13px; font-weight:600; color:var(--gd);">
-            Total: ${aciertos}/8 aciertos · ${puntosTotal} pts
+            Total: ${aciertos}/8 aciertos · ${(aciertos * 0.5).toFixed(1)} pts
           </div>`;
       }
-
       html += `</div>`;
     }
 
@@ -601,7 +571,7 @@ function renderTerceros(contenedor) {
     return;
   }
 
-  // Vista editable
+  // ── Vista editable ─────────────────────────────────────────
   let html = `
     ${plazoInfo}
     <div style="margin-top:12px;">
@@ -609,56 +579,71 @@ function renderTerceros(contenedor) {
         🥉 ${t('thirdPlace.title')}
       </div>
       <div style="font-size:12px; color:var(--tm); margin-bottom:12px;">
-        ${t('thirdPlace.subtitle')}
+        Elige 1 equipo de cada grupo que crees que pasará como mejor tercero. Máximo 8 grupos.
       </div>
 
       <!-- Contador -->
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding:8px 12px;
-        background:${seleccionados === 8 ? 'var(--gl-pale,#f0f7e8)' : seleccionados > 8 ? '#fce0db' : '#f7faf2'};
-        border:1px solid ${seleccionados === 8 ? 'var(--gl)' : seleccionados > 8 ? 'var(--r)' : 'var(--gp)'};
+        background:${seleccionados === 8 ? 'var(--gl-pale,#f0f7e8)' : '#f7faf2'};
+        border:1px solid ${seleccionados === 8 ? 'var(--gl)' : 'var(--gp)'};
         border-radius:var(--radius);">
-        <span style="font-size:22px; font-family:'Bebas Neue',sans-serif; color:${seleccionados === 8 ? 'var(--gl)' : seleccionados > 8 ? 'var(--r)' : 'var(--gd)'};">
+        <span style="font-size:22px; font-family:'Bebas Neue',sans-serif; color:${seleccionados === 8 ? 'var(--gl)' : 'var(--gd)'};">
           ${seleccionados}/8
         </span>
         <span style="font-size:12px; color:var(--tm);">${t('thirdPlace.counter')}</span>
         ${seleccionados === 8
           ? `<span style="font-size:11px; color:var(--gl); margin-left:auto;">✓ Listo para guardar</span>`
-          : seleccionados > 8
-            ? `<span style="font-size:11px; color:var(--r); margin-left:auto;">⚠️ Máximo 8</span>`
-            : ''}
+          : ''}
       </div>
-
-      <!-- Lista de terceros -->
-      <div id="listaTerceros">
   `;
 
-  tercerosPredichos.forEach(eq => {
-    const seleccionado = _predTerceros.includes(eq.nombre);
-    const desactivado  = !seleccionado && seleccionados >= 8;
+  // 12 grupos, cada uno con sus 4 equipos
+  GRUPOS.forEach(g => {
+    const equiposGrupo = obtenerEquiposGrupo(g);
+    const selEnGrupo   = selPorGrupo[g] || null;
+    const grupoCompleto = seleccionados >= 8 && !selEnGrupo; // ya hay 8 y este grupo no tiene ninguno
 
     html += `
-      <div style="display:flex; align-items:center; gap:10px; padding:10px 12px;
-        border:1px solid ${seleccionado ? 'var(--gm)' : '#eee'};
-        border-radius:var(--radius); margin-bottom:6px;
-        background:${seleccionado ? 'var(--gg)' : '#fff'};
-        opacity:${desactivado ? '0.5' : '1'};">
-        <input type="checkbox" id="t_${eq.nombre.replace(/\s/g,'_')}"
-          ${seleccionado ? 'checked' : ''}
-          ${desactivado ? 'disabled' : ''}
-          onchange="window._onTerceroChange('${eq.nombre}')"
-          style="accent-color:var(--gm); width:18px; height:18px; flex-shrink:0; cursor:${desactivado ? 'not-allowed' : 'pointer'};">
-        <label for="t_${eq.nombre.replace(/\s/g,'_')}"
-          style="display:flex; align-items:center; gap:8px; flex:1; cursor:${desactivado ? 'not-allowed' : 'pointer'};">
-          <span style="font-size:20px;">${eq.flag}</span>
-          <span style="font-size:13px; font-weight:${seleccionado ? '600' : '400'}; color:var(--gd);">${eq.nombre}</span>
-          <span style="font-size:10px; color:var(--tm); margin-left:auto;">${t('common.group')} ${eq.grupo} · ${eq.pts} ${t('thirdPlace.pts')}</span>
+      <div style="margin-bottom:10px; padding:10px 12px;
+        border:1px solid ${selEnGrupo ? 'var(--gm)' : '#dde8cc'};
+        border-radius:var(--radius);
+        background:${selEnGrupo ? 'var(--gg)' : '#fff'};">
+        <div style="font-size:10px; font-weight:700; color:var(--gm); text-transform:uppercase;
+          letter-spacing:.5px; margin-bottom:8px;">
+          ${t('common.group')} ${g}
+          ${selEnGrupo ? `<span style="color:var(--gl); margin-left:6px;">✓ ${selEnGrupo}</span>` : ''}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+    `;
+
+    equiposGrupo.forEach(eq => {
+      const seleccionado = selEnGrupo === eq.nombre;
+      const desactivado  = !seleccionado && grupoCompleto;
+
+      html += `
+        <label style="display:flex; align-items:center; gap:6px; padding:6px 10px;
+          border:1px solid ${seleccionado ? 'var(--gm)' : '#eee'};
+          border-radius:20px; cursor:${desactivado ? 'not-allowed' : 'pointer'};
+          background:${seleccionado ? 'var(--gm)' : '#fafdf6'};
+          opacity:${desactivado ? '0.4' : '1'};
+          transition: all .15s;">
+          <input type="checkbox"
+            id="t_${g}_${eq.nombre.replace(/\s/g,'_')}"
+            ${seleccionado ? 'checked' : ''}
+            ${desactivado ? 'disabled' : ''}
+            onchange="window._onTerceroChange('${g}','${eq.nombre}')"
+            style="accent-color:var(--gm); width:14px; height:14px; flex-shrink:0;">
+          <span style="font-size:16px;">${eq.flag}</span>
+          <span style="font-size:12px; font-weight:${seleccionado ? '700' : '400'};
+            color:${seleccionado ? '#fff' : 'var(--gd)'};">${eq.nombre}</span>
         </label>
-      </div>`;
+      `;
+    });
+
+    html += `</div></div>`;
   });
 
   html += `
-      </div>
-
       ${seleccionados > 0 && seleccionados < 8
         ? `<div class="notice warn" style="margin-top:10px;">
             ⚠️ ${t('thirdPlace.minWarning')}
@@ -677,20 +662,27 @@ function renderTerceros(contenedor) {
 
   contenedor.innerHTML = html;
 
-  window._onTerceroChange = (nombre) => {
-    if (_predTerceros.includes(nombre)) {
+  // Handler: 1 equipo por grupo, radio-button behavior
+  window._onTerceroChange = (grupo, nombre) => {
+    const anteriorEnGrupo = selPorGrupo[grupo];
+
+    if (anteriorEnGrupo === nombre) {
+      // Deseleccionar
       _predTerceros = _predTerceros.filter(n => n !== nombre);
     } else {
-      if (_predTerceros.length >= 8) {
+      // Si ya había uno de este grupo, lo sustituimos
+      if (anteriorEnGrupo) {
+        _predTerceros = _predTerceros.filter(n => n !== anteriorEnGrupo);
+      }
+      // Comprobar límite de 8 (solo si no había uno en este grupo)
+      if (!anteriorEnGrupo && _predTerceros.length >= 8) {
         window.mostrarToast('⚠️ ' + t('thirdPlace.maxWarning'), 3000);
-        // Desmarcar el checkbox visualmente
-        const cb = document.getElementById(`t_${nombre.replace(/\s/g,'_')}`);
+        const cb = document.getElementById(`t_${grupo}_${nombre.replace(/\s/g,'_')}`);
         if (cb) cb.checked = false;
         return;
       }
       _predTerceros = [..._predTerceros, nombre];
     }
-    // Re-renderizar para actualizar el contador y estados
     renderTerceros(contenedor);
   };
 
