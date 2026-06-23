@@ -16,7 +16,8 @@
   "subNav": {
     "groupStage":    "Group stage",
     "knockouts":     "Knockouts",
-    "specials":      "Special predictions"
+    "specials":      "Special predictions",
+    "thirdPlace":    "Best third-place"
   },
 
   "login": {
@@ -59,6 +60,26 @@
     "tiebreakOrder": "Tiebreaker — drag to sort",
     "tiebreakNeeded":"Tiebreaker needed",
     "tiebreakExplain":"have the same points, goal difference and goals scored. Choose who finishes higher:"
+  },
+
+  "thirdPlace": {
+    "title":         "Best third-place teams",
+    "subtitle":      "Pick the 8 teams you think will go through as best third-place teams",
+    "openUntil":     "Open until",
+    "closedNotice":  "The best third-place deadline has passed",
+    "counter":       "selected",
+    "maxWarning":    "You have already selected 8 teams. Uncheck one before picking another.",
+    "minWarning":    "You must select exactly 8 teams to save",
+    "saveBtn":       "Save third-place selection",
+    "savedOk":       "Third-place selection saved successfully",
+    "savedError":    "Error saving. Please try again.",
+    "groupLabel":    "Group",
+    "pts":           "pts in your table",
+    "noThirds":      "Fill in your group stage predictions first to see the possible third-place teams",
+    "resultPending": "Official result pending",
+    "correct":       "Correct!",
+    "missed":        "Did not go through as third",
+    "officialThirds":"Official third-place qualifiers"
   },
 
   "knockouts": {
@@ -129,8 +150,8 @@
     "criteria": {
       "groupWinner":    "Correct winner / draw (groups)",
       "groupExact":     "Exact result (groups)",
-      "groupThrough":   "Team that goes through (each)",
-      "groupTie":       "Correct points tie (each)",
+      "groupThrough":   "Team you placed 1st or 2nd that goes through as 1st or 2nd (each)",
+      "thirdPlace":     "Best third-place team that goes through (each)",
       "koWinner":       "Correct winner (knockouts, 90')",
       "koExact":        "Exact result (knockouts, 90')",
       "koDrawPass":     "Correct draw + who goes through",
@@ -144,7 +165,7 @@
       "groupWinner":  "1 pt",
       "groupExact":   "3 pts",
       "groupThrough": "1 pt",
-      "groupTie":     "1 pt",
+      "thirdPlace":   "0.5 pts",
       "koWinner":     "2 pts",
       "koExact":      "4 pts",
       "koDrawPass":   "2 pts",
@@ -225,6 +246,8 @@
       "groupsSub":   "Closes access to group stage predictions, champion, MVP and top scorer",
       "knockouts":   "Knockout bracket",
       "knockoutsSub":"Closes access to the full bracket",
+      "thirdPlace":  "Best third-place teams",
+      "thirdPlaceSub":"Closes access to the best third-place team selection",
       "allPred":     "\"See all predictions\" tab",
       "allPredSub":  "Activates automatically when the group deadline closes",
       "auto":        "Auto",
@@ -235,6 +258,7 @@
       "confirmBody": "Once saved, players will lose access to edit their predictions when these deadlines are reached.",
       "confirmGroups":"Groups + specials deadline",
       "confirmKO":   "Knockout deadline",
+      "confirmThird":"Best third-place deadline",
       "confirmBtn":  "Yes, save deadlines"
     },
     "payments": {
@@ -312,8 +336,10 @@
       "2text":       "Before 11 June at 00:00 (CET) predict the result of all 72 group stage matches and your special picks (champion, runner-up, MVP, top scorer).",
       "3title":      "Fill in the knockout bracket",
       "3text":       "Predict all fixtures from the round of 16 to the final before 28 June at 15:00 (CET). The winners you pick advance automatically.",
-      "4title":      "Follow the standings in real time",
-      "4text":       "Points are calculated automatically. Check the standings and your rivals' predictions at any time!"
+      "4title":      "Pick your best third-place teams",
+      "4text":       "Before 24 July at 20:30 (Oslo time) pick the 8 teams you think will go through as best third-place teams. 0.5 points for each correct pick!",
+      "5title":      "Follow the standings in real time",
+      "5text":       "Points are calculated automatically. Check the standings and your rivals' predictions at any time!"
     },
     "scoringTitle":  "Scoring system",
     "groupStage":    "Group stage",
@@ -329,6 +355,9 @@
     "date2Label":    "Knockout bracket",
     "date2Sub":      "All fixtures from the round of 16 to the final",
     "date2Val":      "28 JUN · 15:00 CET",
+    "date3Label":    "Best third-place teams",
+    "date3Sub":      "The 8 teams you think will go through as best third-place",
+    "date3Val":      "24 JUL · 20:30 Oslo",
     "warningLabel":  "Don't leave your predictions to the last minute!",
     "warningSub":    "Once the deadline passes, no changes can be made",
     "payTitle":      "Entry fee and payment",
