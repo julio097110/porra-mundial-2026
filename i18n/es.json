@@ -16,7 +16,8 @@
   "subNav": {
     "groupStage":    "Fase de grupos",
     "knockouts":     "Eliminatorias",
-    "specials":      "Predicciones especiales"
+    "specials":      "Predicciones especiales",
+    "thirdPlace":    "Mejores terceros"
   },
 
   "login": {
@@ -59,6 +60,26 @@
     "tiebreakOrder": "Desempate — arrastra para ordenar",
     "tiebreakNeeded":"Desempate necesario",
     "tiebreakExplain":"tienen los mismos puntos, diferencia de goles y goles a favor. Elige quién queda mejor clasificado:"
+  },
+
+  "thirdPlace": {
+    "title":         "Mejores terceros",
+    "subtitle":      "Elige los 8 equipos que crees que pasarán de fase como mejores terceros",
+    "openUntil":     "Abierto hasta el",
+    "closedNotice":  "El plazo de mejores terceros está cerrado",
+    "counter":       "seleccionados",
+    "maxWarning":    "Ya has seleccionado 8 equipos. Desmarca uno antes de elegir otro.",
+    "minWarning":    "Debes seleccionar exactamente 8 equipos para guardar",
+    "saveBtn":       "Guardar selección de terceros",
+    "savedOk":       "Selección de terceros guardada correctamente",
+    "savedError":    "Error al guardar. Inténtalo de nuevo.",
+    "groupLabel":    "Grupo",
+    "pts":           "pts en tu tabla",
+    "noThirds":      "Completa primero tus predicciones de grupos para ver los posibles terceros",
+    "resultPending": "Resultado oficial pendiente",
+    "correct":       "¡Acertado!",
+    "missed":        "No pasó como tercero",
+    "officialThirds":"Terceros oficiales clasificados"
   },
 
   "knockouts": {
@@ -129,8 +150,8 @@
     "criteria": {
       "groupWinner":    "Ganador / empate acertado (grupos)",
       "groupExact":     "Resultado exacto (grupos)",
-      "groupThrough":   "Equipo que pasa de grupo (c/u)",
-      "groupTie":       "Empate a puntos acertado (c/u)",
+      "groupThrough":   "Equipo que pusiste 1º o 2º que pasa de grupo como 1º o 2º (c/u)",
+      "thirdPlace":     "Mejor tercero que pasa de fase (c/u)",
       "koWinner":       "Ganador acertado (eliminatorias, 90')",
       "koExact":        "Resultado exacto (eliminatorias, 90')",
       "koDrawPass":     "Empate acertado + quién pasa",
@@ -144,7 +165,7 @@
       "groupWinner":  "1 pt",
       "groupExact":   "3 pts",
       "groupThrough": "1 pt",
-      "groupTie":     "1 pt",
+      "thirdPlace":   "0,5 pts",
       "koWinner":     "2 pts",
       "koExact":      "4 pts",
       "koDrawPass":   "2 pts",
@@ -225,6 +246,8 @@
       "groupsSub":   "Cierra el acceso a predicciones de fase de grupos, campeón, MVP y goleador",
       "knockouts":   "Bracket de eliminatorias",
       "knockoutsSub":"Cierra el acceso al bracket completo",
+      "thirdPlace":  "Mejores terceros",
+      "thirdPlaceSub":"Cierra el acceso a la selección de mejores terceros",
       "allPred":     "Pestaña \"Ver todas las predicciones\"",
       "allPredSub":  "Se activa automáticamente al cerrar el plazo de grupos",
       "auto":        "Auto",
@@ -235,6 +258,7 @@
       "confirmBody": "Una vez guardadas, los jugadores perderán acceso a editar sus predicciones cuando se alcancen estas fechas.",
       "confirmGroups":"Cierre grupos + especiales",
       "confirmKO":   "Cierre eliminatorias",
+      "confirmThird":"Cierre mejores terceros",
       "confirmBtn":  "Sí, guardar fechas"
     },
     "payments": {
@@ -312,8 +336,10 @@
       "2text":       "Antes del 11 de junio a las 00:00 (CET) predice el resultado de los 72 partidos de la fase de grupos y tus apuestas especiales (campeón, segundo, MVP, goleador).",
       "3title":      "Rellena el bracket de eliminatorias",
       "3text":       "Predice todos los cruces desde 1/16 hasta la final antes del 28 de junio a las 15:00 (CET). Los ganadores que elijas avanzan automáticamente.",
-      "4title":      "Sigue la clasificación en tiempo real",
-      "4text":       "Los puntos se calculan automáticamente. ¡Consulta la clasificación y las predicciones de tus rivales!"
+      "4title":      "Elige tus mejores terceros",
+      "4text":       "Antes del 24 de julio a las 20:30 (Oslo) elige los 8 equipos que crees que pasarán de fase como mejores terceros. ¡0,5 puntos por cada acierto!",
+      "5title":      "Sigue la clasificación en tiempo real",
+      "5text":       "Los puntos se calculan automáticamente. ¡Consulta la clasificación y las predicciones de tus rivales en cualquier momento!"
     },
     "scoringTitle":  "Sistema de puntuación",
     "groupStage":    "Fase de grupos",
@@ -329,6 +355,9 @@
     "date2Label":    "Bracket de eliminatorias",
     "date2Sub":      "Todos los cruces desde 1/16 hasta la final",
     "date2Val":      "28 JUN · 15:00 CET",
+    "date3Label":    "Mejores terceros",
+    "date3Sub":      "Los 8 equipos que crees que pasan de fase como mejor tercero",
+    "date3Val":      "24 JUL · 20:30 Oslo",
     "warningLabel":  "¡No dejes las predicciones para el último momento!",
     "warningSub":    "Una vez cerrado el plazo no se pueden modificar",
     "payTitle":      "Inscripción y pago",
