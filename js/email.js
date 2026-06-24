@@ -252,6 +252,25 @@ function generarResumenPredicciones(predicciones, tipo, usuario) {
     lineas.push(`  Máximo goleador:      ${predicciones.goleador   || 'sin rellenar'}`);
   }
 
+  // ── NUEVO: mejores terceros ───────────────────────────────
+  else if (tipo === 'terceros') {
+    lineas.push(`\nMEJORES TERCEROS`);
+    if (!Array.isArray(predicciones) || predicciones.length === 0) {
+      lineas.push(`  Sin selección guardada`);
+    } else {
+      // Ordenar por grupo usando PARTIDOS_GRUPOS
+      const conGrupo = predicciones.map(nombre => {
+        const partido = PARTIDOS_GRUPOS.find(p => p.local === nombre || p.visitante === nombre);
+        return { nombre, grupo: partido?.grupo || 'Z' };
+      }).sort((a, b) => a.grupo.localeCompare(b.grupo));
+
+      conGrupo.forEach(({ nombre, grupo }) => {
+        lineas.push(`  ${nombre} (Grupo ${grupo})`);
+      });
+      lineas.push(`\n  Total: ${predicciones.length}/8 equipos seleccionados`);
+    }
+  }
+
   lineas.push(`\n${sep}`);
   lineas.push(`Este email es una copia de seguridad automática.`);
   lineas.push(`Los datos están guardados en Firebase Firestore.`);
@@ -261,9 +280,10 @@ function generarResumenPredicciones(predicciones, tipo, usuario) {
 
 function traducirTipo(tipo) {
   const map = {
-    grupos:          'Fase de grupos',
-    eliminatorias:   'Eliminatorias',
-    especiales:      'Predicciones especiales'
+    grupos:        'Fase de grupos',
+    eliminatorias: 'Eliminatorias',
+    especiales:    'Predicciones especiales',
+    terceros:      'Mejores terceros'          // ← NUEVO
   };
   return map[tipo] || tipo;
 }
@@ -275,6 +295,9 @@ function contarCampos(predicciones, tipo) {
   if (tipo === 'eliminatorias') return Object.keys(predicciones).length;
   if (tipo === 'especiales') {
     return ['campeon','subcampeon','mvp','goleador'].filter(k => predicciones[k]).length;
+  }
+  if (tipo === 'terceros') {                   // ← NUEVO
+    return Array.isArray(predicciones) ? predicciones.length : 0;
   }
   return 0;
 }
