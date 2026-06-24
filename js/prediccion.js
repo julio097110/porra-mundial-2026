@@ -1359,6 +1359,13 @@ async function guardarPrediccionesTerceros() {
       { merge: true }
     );
     window.mostrarToast('✅ ' + t('thirdPlace.savedOk'));
+
+    // ── NUEVO: email de confirmación al admin ─────────────────
+    try {
+      const { enviarEmailPredicciones } = await import('./email.js');
+      await enviarEmailPredicciones(_app.usuario, _predTerceros, 'terceros');
+    } catch (e) { console.warn('[email]', e); }
+
   } catch (e) {
     console.error('[guardarTerceros]', e);
     window.mostrarToast('❌ ' + t('thirdPlace.savedError'), 5000);
