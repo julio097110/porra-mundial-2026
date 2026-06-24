@@ -146,7 +146,7 @@ function renderSeccion() {
 // ══════════════════════════════════════════════════════════════
 
 function renderResumen() {
-  const sinPred  = _usuarios.filter(u => u.estadoPred === 'ninguno').length;
+  const sinPred  = _usuarios.filter(u => u.predGrupos.estado === 'ninguno' && u.predEsp.estado === 'ninguno' && u.predElim.estado === 'ninguno' && u.predTerceros.estado === 'ninguno').length;
   const pagados  = _usuarios.filter(u => u.pagado).length;
   const diasFin  = diasHastaFecha('2026-06-11T00:00:00+02:00');
 
@@ -237,7 +237,7 @@ function renderJugadores() {
                   <td><span class="player-name">${u.nombre_visible || '—'}</span></td>
                   <td style="color:var(--tm);">${u.username || '—'}</td>
                   <td><span class="lang-tag">${(u.idioma || 'es').toUpperCase()}</span></td>
-                  <td>${badgePred(u.estadoPred)}</td>
+                  <td>${badgesPred(u)}</td>
                   <td>
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
                       <input type="checkbox" ${u.pagado ? 'checked' : ''}
@@ -276,10 +276,20 @@ function renderJugadores() {
     </div>`;
 }
 
-function badgePred(estado) {
-  if (estado === 'completo')  return `<span class="pred-ok">✓ ${t('admin.players.predFull')}</span>`;
-  if (estado === 'parcial')   return `<span class="pred-partial">⚡ ${t('admin.players.predPartial')}</span>`;
-  return `<span class="pred-none">✗ ${t('admin.players.predNone')}</span>`;
+// ── Badges de predicciones (4 tipos en línea) ────────────────
+function badgePredTipo(estado, label) {
+  if (estado === 'completo') return `<span class="pred-ok" style="font-size:10px; padding:2px 5px;">✓ ${label}</span>`;
+  if (estado === 'parcial')  return `<span class="pred-partial" style="font-size:10px; padding:2px 5px;">⚡ ${label}</span>`;
+  return `<span class="pred-none" style="font-size:10px; padding:2px 5px;">✗ ${label}</span>`;
+}
+
+function badgesPred(u) {
+  return `<div style="display:flex; flex-wrap:wrap; gap:3px; align-items:center;">
+    ${badgePredTipo(u.predGrupos.estado,   'Grupos')}
+    ${badgePredTipo(u.predEsp.estado,      'Esp.')}
+    ${badgePredTipo(u.predElim.estado,     'Elim.')}
+    ${badgePredTipo(u.predTerceros.estado, 'Terc.')}
+  </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -311,7 +321,7 @@ function renderPrediccionesAdmin() {
               ${_usuarios.map(u => `
                 <tr>
                   <td><span class="player-name">${u.nombre_visible}</span></td>
-                  <td>${badgePred(u.estadoPred)}</td>
+                  <td>${badgesPred(u)}</td>
                   <td>
                     <button class="btn btn-secondary btn-sm"
                       onclick="window._adminVerPredicciones('${u.uid}', '${u.nombre_visible}')">
@@ -1483,27 +1493,48 @@ function registrarHandlers() {
       ''
     );
     try {
-      const [gruposSnap, elimSnap, espSnap] = await Promise.all([
+      const [gruposSnap, elimSnap, espSnap, tercerosSnap] = await Promise.all([
         getDocs(query(collection(db, 'predicciones'),     where('uid', '==', uid))),
         getDocs(query(collection(db, 'predicciones_elim'),where('uid', '==', uid))),
-        getDoc(doc(db, 'pred_especiales', uid))
+        getDoc(doc(db, 'pred_especiales', uid)),
+        getDoc(doc(db, 'pred_terceros',   uid))
       ]);
-      const nGrupos = gruposSnap.size;
-      const nElim   = elimSnap.size;
-      const esp     = espSnap.exists() ? espSnap.data() : {};
+
+      // Grupos: excluir el doc de desempates del conteo
+      let nGrupos = 0;
+      gruposSnap.forEach(d => { if (d.data().partido_id !== 'desempates') nGrupos++; });
+
+      const nElim     = elimSnap.size;
+      const esp       = espSnap.exists()      ? espSnap.data()      : {};
+      const tercData  = tercerosSnap.exists() ? tercerosSnap.data() : {};
+      const equiposTerceros = tercData.equipos || [];
+      const nTerceros = equiposTerceros.length;
+
+      const colorGrupos   = nGrupos >= 72 ? 'var(--gl)' : nGrupos > 0  ? 'var(--gold)' : 'var(--r)';
+      const colorElim     = nElim   >= 32 ? 'var(--gl)' : nElim   > 0  ? 'var(--gold)' : 'var(--tm)';
+      const colorTerceros = nTerceros >= 8 ? 'var(--gl)' : nTerceros > 0 ? 'var(--gold)' : 'var(--tm)';
+
+      const espCompleto = esp.campeon && esp.subcampeon && esp.mvp && esp.goleador;
+      const espColor    = espCompleto ? 'var(--gl)' : (esp.campeon || esp.subcampeon || esp.mvp || esp.goleador) ? 'var(--gold)' : 'var(--r)';
 
       document.getElementById('modalBody').innerHTML = `
         <div style="font-size:13px; display:flex; flex-direction:column; gap:10px;">
+
           <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
             <span style="color:var(--ts);">⚽ Predicciones de grupos</span>
-            <strong style="color:${nGrupos >= 72 ? 'var(--gl)' : nGrupos > 0 ? 'var(--gold)' : 'var(--r)'};">${nGrupos} / 72</strong>
+            <strong style="color:${colorGrupos};">${nGrupos} / 72</strong>
           </div>
+
           <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f0f5e8;">
             <span style="color:var(--ts);">⚔️ Predicciones de eliminatorias</span>
-            <strong style="color:${nElim > 0 ? 'var(--gl)' : 'var(--tm)'};">${nElim} partidos</strong>
+            <strong style="color:${colorElim};">${nElim} / 32</strong>
           </div>
+
           <div style="padding:8px 0; border-bottom:1px solid #f0f5e8;">
-            <div style="color:var(--ts); margin-bottom:6px;">⭐ Predicciones especiales</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+              <span style="color:var(--ts);">⭐ Predicciones especiales</span>
+              <strong style="color:${espColor};">${espCompleto ? '✓ Completas' : (esp.campeon || esp.subcampeon || esp.mvp || esp.goleador) ? '⚡ Parciales' : '✗ Sin rellenar'}</strong>
+            </div>
             <div style="font-size:12px; display:grid; grid-template-columns:1fr 1fr; gap:4px;">
               <span style="color:var(--tm);">🏆 Campeón:</span><strong>${esp.campeon    || '—'}</strong>
               <span style="color:var(--tm);">🥈 Subcampeón:</span><strong>${esp.subcampeon || '—'}</strong>
@@ -1513,6 +1544,12 @@ function registrarHandlers() {
               <strong>${esp.goleador || '—'}${esp.goleador_corregido ? `<span style="color:var(--gl); font-size:10px;"> (corr: ${esp.goleador_corregido})</span>` : ''}</strong>
             </div>
           </div>
+
+          <div style="display:flex; justify-content:space-between; padding:8px 0;">
+            <span style="color:var(--ts);">🥉 Mejores terceros</span>
+            <strong style="color:${colorTerceros};">${nTerceros} / 8</strong>
+          </div>
+
         </div>`;
       document.getElementById('modalFooter').innerHTML = `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
     } catch (e) {
@@ -1643,36 +1680,73 @@ function registrarHandlers() {
 // ══════════════════════════════════════════════════════════════
 
 async function cargarUsuarios() {
-  const snap = await getDocs(collection(db, 'usuarios'));
+  const snap           = await getDocs(collection(db, 'usuarios'));
   const predGruposSnap = await getDocs(collection(db, 'predicciones'));
   const predElimSnap   = await getDocs(collection(db, 'predicciones_elim'));
+  const predEspSnap    = await getDocs(collection(db, 'pred_especiales'));
+  const predTercSnap   = await getDocs(collection(db, 'pred_terceros'));
 
-  const TOTAL_PARTIDOS = 104;
-
-  const conteo = {};
+  // ── Grupos: contar por uid, excluyendo doc de desempates ──
+  const cGrupos = {};
   predGruposSnap.forEach(d => {
     const data = d.data();
     if (data.partido_id === 'desempates') return;
     const uid = data.uid;
-    if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
-  });
-  predElimSnap.forEach(d => {
-    const uid = d.data().uid;
-    if (uid) conteo[uid] = (conteo[uid] || 0) + 1;
+    if (uid) cGrupos[uid] = (cGrupos[uid] || 0) + 1;
   });
 
+  // ── Eliminatorias: contar por uid ──
+  const cElim = {};
+  predElimSnap.forEach(d => {
+    const uid = d.data().uid;
+    if (uid) cElim[uid] = (cElim[uid] || 0) + 1;
+  });
+
+  // ── Especiales: registrar qué campos tiene cada uid ──
+  const cEsp = {};
+  predEspSnap.forEach(d => {
+    const data = d.data();
+    const uid  = d.id;
+    const rellenos = [data.campeon, data.subcampeon, data.mvp, data.goleador].filter(Boolean).length;
+    cEsp[uid] = rellenos; // 0-4
+  });
+
+  // ── Terceros: contar equipos seleccionados por uid ──
+  const cTerceros = {};
+  predTercSnap.forEach(d => {
+    const data   = d.data();
+    const uid    = data.uid || d.id;
+    const equipos = data.equipos || [];
+    cTerceros[uid] = equipos.length;
+  });
+
+  // ── Construir objetos de usuario ──
   _usuarios = snap.docs.map(d => {
     const data = d.data();
-    const n    = conteo[d.id] || 0;
+    const uid  = d.id;
+
+    const nGrupos   = cGrupos[uid]   || 0;
+    const nElim     = cElim[uid]     || 0;
+    const nEsp      = cEsp[uid]      || 0;
+    const nTerceros = cTerceros[uid] || 0;
+
+    const estadoGrupos   = nGrupos   === 0 ? 'ninguno' : nGrupos   < 72 ? 'parcial' : 'completo';
+    const estadoElim     = nElim     === 0 ? 'ninguno' : nElim     < 32 ? 'parcial' : 'completo';
+    const estadoEsp      = nEsp      === 0 ? 'ninguno' : nEsp      <  4 ? 'parcial' : 'completo';
+    const estadoTerceros = nTerceros === 0 ? 'ninguno' : nTerceros <  8 ? 'parcial' : 'completo';
+
     return {
-      uid:          d.id,
+      uid,
       nombre_visible: data.nombre_visible || '—',
-      username:     data.username || '—',
-      idioma:       data.idioma   || 'es',
-      rol:          data.rol      || 'jugador',
-      pagado:       data.pagado   || false,
-      mimimi:       data.mimimi   || false,
-      estadoPred:   n === 0 ? 'ninguno' : n < TOTAL_PARTIDOS ? 'parcial' : 'completo'
+      username:       data.username || '—',
+      idioma:         data.idioma   || 'es',
+      rol:            data.rol      || 'jugador',
+      pagado:         data.pagado   || false,
+      mimimi:         data.mimimi   || false,
+      predGrupos:   { n: nGrupos,   estado: estadoGrupos   },
+      predElim:     { n: nElim,     estado: estadoElim     },
+      predEsp:      { n: nEsp,      estado: estadoEsp      },
+      predTerceros: { n: nTerceros, estado: estadoTerceros }
     };
   }).sort((a, b) => a.nombre_visible.localeCompare(b.nombre_visible));
 }
