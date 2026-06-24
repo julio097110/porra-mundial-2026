@@ -1690,7 +1690,7 @@ async function cargarUsuarios() {
   const cGrupos = {};
   predGruposSnap.forEach(d => {
     const data = d.data();
-    if (data.partido_id === 'desempates') return;
+    if (!data.partido_id) return;
     const uid = data.uid;
     if (uid) cGrupos[uid] = (cGrupos[uid] || 0) + 1;
   });
