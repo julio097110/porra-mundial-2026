@@ -455,48 +455,64 @@ function renderVistaTerceros(pagina) {
       </div>`;
   }
 
-  // Construir la lista ordenada de equipos que aparecen en al menos una predicción,
-  // ordenados por grupo. Cada entrada: { nombre, grupo }
+  // ── Helpers ───────────────────────────────────────────────
   const grupoDeEquipo = (nombre) => {
     const p = PARTIDOS_GRUPOS.find(p => p.local === nombre || p.visitante === nombre);
-    return p?.grupo || 'Z';
+    return p?.grupo || null;
   };
 
-  // Recoger todos los equipos distintos elegidos por cualquier jugador
-  const equiposSet = new Set();
-  Object.values(_predTerceros).forEach(arr => {
-    if (Array.isArray(arr)) arr.forEach(e => equiposSet.add(e));
+  const flagDeEquipo = (nombre) => {
+    const p = PARTIDOS_GRUPOS.find(p => p.local === nombre || p.visitante === nombre);
+    if (!p) return '';
+    return p.local === nombre ? (p.flagLocal || '') : (p.flagVisitante || '');
+  };
+
+  // ── Extraer los 8 terceros clasificados del bracket ───────
+  // Se guardan como equipoVisitante en los partidos r32 con terceros
+  const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
+  const tercerosPasaron = new Set(); // nombres de equipos que pasaron como mejor tercero
+  let hayTercerosBracket = false;
+  IDS_TERCEROS.forEach(id => {
+    const eq = _bracket[id]?.equipoVisitante;
+    if (eq) {
+      tercerosPasaron.add(eq);
+      hayTercerosBracket = true;
+    }
   });
 
-  // Ordenar por grupo
-  const equiposOrdenados = [...equiposSet].map(nombre => ({
-    nombre,
-    grupo: grupoDeEquipo(nombre)
-  })).sort((a, b) => a.grupo.localeCompare(b.grupo) || a.nombre.localeCompare(b.nombre));
+  // ── Columnas: los 12 grupos fijos A–L ─────────────────────
+  const gruposOrdenados = ['A','B','C','D','E','F','G','H','I','J','K','L'];
 
-  if (equiposOrdenados.length === 0) {
+  // Verificar si hay alguna predicción guardada
+  const hayPreds = Object.values(_predTerceros).some(arr => Array.isArray(arr) && arr.length > 0);
+  if (!hayPreds) {
     return `<div class="notice" style="margin-top:8px;">Aún no hay predicciones de mejores terceros guardadas.</div>`;
   }
 
-  // Cabecera: una columna por equipo con "Nombre (Grupo X)"
-  // Usamos la clave i18n 'common.group' para "Grupo" / "Group"
+  // ── Cabecera: Grupo A … Grupo L ───────────────────────────
   const grupoLabel = t('common.group');
 
   let html = `
     <div class="prev-table-wrap">
       <div class="prev-header">
         <div class="prev-col-name">${t('standings.player')}</div>
-        ${equiposOrdenados.map(e => `
-          <div class="prev-col-match" style="font-size:9px; line-height:1.3; white-space:normal;">
-            ${e.nombre}<br>
-            <span style="color:var(--tm); font-size:8px;">(${grupoLabel} ${e.grupo})</span>
+        ${gruposOrdenados.map(g => `
+          <div class="prev-col-match" style="font-size:10px; font-weight:700; letter-spacing:.5px;">
+            ${grupoLabel} ${g}
           </div>
         `).join('')}
       </div>`;
 
   pagina.forEach(u => {
-    const esYo    = u.uid === _app.uid;
-    const elegidos = new Set(_predTerceros[u.uid] || []);
+    const esYo  = u.uid === _app.uid;
+    const preds = _predTerceros[u.uid] || [];
+
+    // Mapear cada equipo elegido a su grupo
+    const equipoPorGrupo = {};
+    preds.forEach(nombre => {
+      const g = grupoDeEquipo(nombre);
+      if (g) equipoPorGrupo[g] = nombre;
+    });
 
     html += `
       <div class="prev-row ${esYo ? 'me' : ''}">
@@ -504,11 +520,25 @@ function renderVistaTerceros(pagina) {
           ${u.nombre}
           ${esYo ? `<span class="s-you" style="font-size:9px;">${t('allPredictions.you')}</span>` : ''}
         </div>
-        ${equiposOrdenados.map(e => {
-          if (elegidos.has(e.nombre)) {
-            return `<div class="prev-cell exact" style="font-size:10px;">✓</div>`;
+        ${gruposOrdenados.map(g => {
+          const equipo = equipoPorGrupo[g];
+          if (!equipo) {
+            return `<div class="prev-cell" style="font-size:10px; color:#ccc;">—</div>`;
           }
-          return `<div class="prev-cell" style="font-size:10px; color:#ccc;">—</div>`;
+          const flag = flagDeEquipo(equipo);
+          const nombre = abreviar(equipo, 10);
+
+          if (!hayTercerosBracket) {
+            // Aún no se conocen los terceros: mostrar sin color
+            return `<div class="prev-cell" style="font-size:10px; line-height:1.3;">
+              ${flag} ${nombre}
+            </div>`;
+          }
+
+          const acerto = tercerosPasaron.has(equipo);
+          return `<div class="prev-cell ${acerto ? 'exact' : 'miss'}" style="font-size:10px; line-height:1.3;">
+            ${flag} ${nombre}
+          </div>`;
         }).join('')}
       </div>`;
   });
