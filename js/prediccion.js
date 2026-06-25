@@ -513,11 +513,9 @@ function renderTerceros(contenedor) {
 
   // ── Vista bloqueada ────────────────────────────────────────
   if (cerrado) {
-    const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
-    const tercerosOficiales = new Set(
-      IDS_TERCEROS.map(id => _bracket[id]?.equipoVisitante).filter(Boolean)
-    );
-    const hayOficiales = tercerosOficiales.size > 0;
+    // Leer terceros confirmados por FIFA desde config/general
+    const tercerosConfirmados = new Set(_config.terceros_confirmados || []);
+    const hayConfirmados = tercerosConfirmados.size > 0;
 
     let html = `${plazoInfo}`;
 
@@ -529,39 +527,49 @@ function renderTerceros(contenedor) {
           🥉 ${t('thirdPlace.title')} — ${t('specials.locked')}
         </div>`;
 
-      if (hayOficiales) {
+      if (hayConfirmados) {
         html += `<div style="font-size:11px; color:var(--tm); margin-bottom:8px;">
-          ${t('thirdPlace.officialThirds')}: ${[...tercerosOficiales].join(', ')}
+          ${t('thirdPlace.officialThirds')}: ${[...tercerosConfirmados].join(', ')}
         </div>`;
       }
 
       _predTerceros.forEach(nombre => {
         const eq = EQUIPOS_48.find(e => e.nombre === nombre);
         const flag = eq?.flag || '';
-        const esCorrecto = tercerosOficiales.has(nombre);
-        const icono = hayOficiales ? (esCorrecto ? '✅' : '❌') : '⏳';
-        const color = hayOficiales ? (esCorrecto ? 'var(--gl)' : 'var(--r)') : 'var(--tm)';
+        const esCorrecto = tercerosConfirmados.has(nombre);
+        // Solo mostramos ✅/❌ si ese equipo ya tiene confirmación
+        // Si no está confirmado aún mostramos ⏳
+        const icono = hayConfirmados && tercerosConfirmados.size === 8
+          ? (esCorrecto ? '✅' : '❌')
+          : esCorrecto
+            ? '✅'
+            : '⏳';
+        const color = esCorrecto ? 'var(--gl)' : hayConfirmados ? 'var(--tm)' : 'var(--tm)';
+        const textoEstado = esCorrecto
+          ? t('thirdPlace.correct') + ' +0.5 pts'
+          : (tercerosConfirmados.size === 8 ? t('thirdPlace.missed') : t('thirdPlace.resultPending'));
+
         html += `
           <div style="display:flex; align-items:center; gap:10px; padding:8px 10px;
-            border:1px solid ${esCorrecto && hayOficiales ? 'var(--gl)' : '#eee'};
+            border:1px solid ${esCorrecto ? 'var(--gl)' : '#eee'};
             border-radius:var(--radius); margin-bottom:6px;
-            background:${esCorrecto && hayOficiales ? 'var(--gl-pale,#f0f7e8)' : '#fff'};">
+            background:${esCorrecto ? 'var(--gl-pale,#f0f7e8)' : '#fff'};">
             <span style="font-size:18px;">${flag}</span>
             <span style="flex:1; font-size:13px; font-weight:500;">${nombre}</span>
             <span style="font-size:12px; font-weight:600; color:${color};">
-              ${icono} ${hayOficiales
-                ? (esCorrecto ? t('thirdPlace.correct') + ' +0.5 pts' : t('thirdPlace.missed'))
-                : t('thirdPlace.resultPending')}
+              ${icono} ${textoEstado}
             </span>
           </div>`;
       });
 
-      if (hayOficiales) {
-        const aciertos = _predTerceros.filter(n => tercerosOficiales.has(n)).length;
+      if (hayConfirmados) {
+        const aciertos = _predTerceros.filter(n => tercerosConfirmados.has(n)).length;
+        const totalPosibles = tercerosConfirmados.size;
         html += `
           <div style="margin-top:12px; padding:10px 14px; background:var(--gg); border:1px solid var(--gp);
             border-radius:var(--radius); font-size:13px; font-weight:600; color:var(--gd);">
-            Total: ${aciertos}/8 aciertos · ${(aciertos * 0.5).toFixed(1)} pts
+            ${aciertos}/${totalPosibles} aciertos confirmados · ${(aciertos * 0.5).toFixed(1)} pts
+            ${totalPosibles < 8 ? `<span style="font-size:11px; font-weight:400; color:var(--tm); margin-left:8px;">(${8 - totalPosibles} pendiente${8 - totalPosibles !== 1 ? 's' : ''} de confirmar)</span>` : ''}
           </div>`;
       }
       html += `</div>`;
