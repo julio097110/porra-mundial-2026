@@ -17,7 +17,7 @@ import {
   verificarUsernameDisponible, marcarPago,
   eliminarUsuarioFirestore, obtenerTodosUsuarios
 } from './auth.js';
-import { GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
+import { GRUPOS, getPartidosPorGrupo, EQUIPOS_48 } from '../data/partidos.js';
 import { calcularPuntosPartido, recalcularPuntosTerceros, borrarPuntosTerceros } from './resultados.js';
 import { calcularPuntosPartidoElim } from './resultados_elim.js';
 
@@ -29,6 +29,7 @@ let _config      = {};
 let _emails      = [];
 let _especiales  = [];
 let _bracket     = {};   // config/bracket_eliminatorias
+let _tercerosConfirmados = []; // config/general.terceros_confirmados
 let _resultadosGrupos = {}; // resultados confirmados para saber qué grupos están completos
 let _paginaJug   = 1;
 const POR_PAGINA = 20;
@@ -752,15 +753,130 @@ function renderBracketAdmin() {
   });
 
   const pendientes = partidosConTercero.filter(p => _bracket[p.id]?.terceroPendiente !== false && !_bracket[p.id]?.equipoVisitante).length;
+  const confirmadosSet = new Set(_tercerosConfirmados);
+  const nConfirmados = _tercerosConfirmados.length;
+
+  // ── Helper: obtener equipos de un grupo ──────────────────
+  function equiposDeGrupo(g) {
+    const partidos = getPartidosPorGrupo(g);
+    const vistos = new Set();
+    const lista = [];
+    partidos.forEach(p => {
+      if (!vistos.has(p.local))     { vistos.add(p.local);     lista.push({ nombre: p.local,     flag: p.flagLocal }); }
+      if (!vistos.has(p.visitante)) { vistos.add(p.visitante); lista.push({ nombre: p.visitante, flag: p.flagVisitante }); }
+    });
+    return lista;
+  }
 
   let html = `
     <div>
       <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:6px;">
         🏆 Bracket — Terceros clasificados
       </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SECCIÓN 1: TERCEROS CONFIRMADOS POR FIFA
+           ═══════════════════════════════════════════════════ -->
+      <div class="card" style="margin-bottom:18px; border:2px solid var(--gm);">
+        <div class="card-header" style="background:var(--gm);">
+          <span class="card-header-title" style="color:#fff;">
+            🥉 ${t('admin.bracket.confirmedTitle')}
+            <span style="font-weight:400; font-size:11px; margin-left:8px;">${t('admin.bracket.confirmedSub')}</span>
+          </span>
+        </div>
+        <div class="card-body">
+
+          <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+            ${t('admin.bracket.confirmedHint')}
+            <strong style="color:${nConfirmados >= 8 ? 'var(--gl)' : 'var(--gd)'};">
+              ${nConfirmados}/8 ${t('admin.bracket.confirmed')}
+            </strong>
+          </div>
+
+          <!-- Grid de grupos -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; margin-bottom:16px;">
+  `;
+
+  GRUPOS.forEach(g => {
+    const equipos = equiposDeGrupo(g);
+    html += `
+      <div style="border:1px solid var(--gp); border-radius:var(--radius); padding:10px 12px;">
+        <div style="font-size:10px; font-weight:700; color:var(--gm); text-transform:uppercase;
+          letter-spacing:.5px; margin-bottom:8px;">
+          ${t('common.group')} ${g}
+        </div>
+        <div style="display:flex; flex-direction:column; gap:5px;">
+    `;
+    equipos.forEach(eq => {
+      const checked = confirmadosSet.has(eq.nombre) ? 'checked' : '';
+      html += `
+        <label style="display:flex; align-items:center; gap:7px; cursor:pointer;
+          padding:5px 8px; border-radius:6px;
+          background:${confirmadosSet.has(eq.nombre) ? 'var(--gl-pale,#f0f7e8)' : '#fafdf6'};
+          border:1px solid ${confirmadosSet.has(eq.nombre) ? 'var(--gl)' : '#eee'};
+          transition: all .15s;">
+          <input type="checkbox"
+            class="tc-check"
+            data-equipo="${eq.nombre}"
+            ${checked}
+            style="accent-color:var(--gl); width:14px; height:14px; flex-shrink:0;"
+            onchange="window._adminOnTerceroConfirmado(this)">
+          <span style="font-size:15px;">${eq.flag}</span>
+          <span style="font-size:12px; font-weight:${confirmadosSet.has(eq.nombre) ? '700' : '400'};
+            color:${confirmadosSet.has(eq.nombre) ? 'var(--gd)' : 'var(--ts)'};">
+            ${eq.nombre}
+          </span>
+          ${confirmadosSet.has(eq.nombre)
+            ? `<span style="margin-left:auto; font-size:10px; color:var(--gl); font-weight:700;">✓</span>`
+            : ''}
+        </label>
+      `;
+    });
+    html += `</div></div>`;
+  });
+
+  html += `
+          </div>
+
+          <!-- Lista actual de confirmados -->
+          ${nConfirmados > 0 ? `
+            <div style="padding:10px 12px; background:#f7faf2; border:1px solid var(--gp);
+              border-radius:var(--radius); margin-bottom:12px; font-size:12px;">
+              <span style="font-weight:600; color:var(--gd);">
+                ${t('admin.bracket.currentConfirmed')}:
+              </span>
+              ${_tercerosConfirmados.map(n => {
+                const eq = EQUIPOS_48.find(e => e.nombre === n);
+                return `<span style="display:inline-flex; align-items:center; gap:4px; margin:2px 4px;
+                  padding:2px 8px; background:var(--gl); color:#fff; border-radius:12px; font-weight:600;">
+                  ${eq?.flag || ''} ${n}
+                </span>`;
+              }).join('')}
+            </div>` : ''}
+
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="window._adminGuardarTercerosConfirmados()">
+              💾 ${t('admin.bracket.saveConfirmedBtn')}
+            </button>
+            ${nConfirmados > 0 ? `
+              <button class="btn btn-danger btn-sm" onclick="window._adminBorrarTodosConfirmados()">
+                🗑️ ${t('admin.bracket.clearConfirmedBtn')}
+              </button>` : ''}
+            <span style="font-size:11px; color:var(--tm);">
+              ${t('admin.bracket.autoRecalc')}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SECCIÓN 2: ASIGNACIÓN DE SLOTS EN EL BRACKET R32
+           ═══════════════════════════════════════════════════ -->
+      <div style="font-size:13px; font-weight:600; color:var(--gd); margin-bottom:6px;">
+        📋 ${t('admin.bracket.slotsTitle')}
+      </div>
       <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
-        Asigna manualmente qué tercer clasificado juega cada partido de la Ronda de 32.
-        Solo aparecen los grupos cuyos 3 partidos están confirmados.
+        ${t('admin.bracket.slotsSub')}
       </div>
 
       ${pendientes > 0 ? `
@@ -1595,6 +1711,71 @@ function registrarHandlers() {
     }
   };
 
+  // ── Terceros confirmados por FIFA ─────────────────────────
+  window._adminOnTerceroConfirmado = (checkbox) => {
+    const nombre = checkbox.dataset.equipo;
+    if (!nombre) return;
+    if (checkbox.checked) {
+      if (!_tercerosConfirmados.includes(nombre)) {
+        _tercerosConfirmados = [..._tercerosConfirmados, nombre];
+      }
+    } else {
+      _tercerosConfirmados = _tercerosConfirmados.filter(n => n !== nombre);
+    }
+    // Re-renderizar solo la sección para reflejar contadores y lista
+    document.getElementById('adminSeccion').innerHTML = renderSeccion();
+    registrarHandlers();
+  };
+
+  window._adminGuardarTercerosConfirmados = async () => {
+    try {
+      window.mostrarToast('💾 Guardando...');
+      await setDoc(doc(db, 'config', 'general'), {
+        terceros_confirmados: _tercerosConfirmados
+      }, { merge: true });
+      _config.terceros_confirmados = _tercerosConfirmados;
+
+      // Recalcular puntos automáticamente
+      window.mostrarToast('🔄 Recalculando puntos de terceros...');
+      await recalcularPuntosTerceros();
+
+      const n = _tercerosConfirmados.length;
+      window.mostrarToast(`✅ ${n} tercero${n !== 1 ? 's' : ''} confirmado${n !== 1 ? 's' : ''} · Puntos actualizados`);
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+    } catch (e) {
+      console.error('[guardarTercerosConfirmados]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  window._adminBorrarTodosConfirmados = () => {
+    window.appAbrirModal(
+      `🗑️ ${t('admin.bracket.clearConfirmedBtn')}`,
+      `<p style="font-size:13px;">${t('admin.bracket.clearConfirmedConfirm')}</p>`,
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('common.cancel')}</button>
+       <button class="btn btn-danger" onclick="window._adminConfirmarBorrarConfirmados()">
+         🗑️ ${t('common.confirm')}
+       </button>`
+    );
+  };
+
+  window._adminConfirmarBorrarConfirmados = async () => {
+    try {
+      window.appCerrarModal();
+      _tercerosConfirmados = [];
+      await setDoc(doc(db, 'config', 'general'), { terceros_confirmados: [] }, { merge: true });
+      _config.terceros_confirmados = [];
+      await recalcularPuntosTerceros();
+      window.mostrarToast('✅ Terceros confirmados borrados · Puntos actualizados');
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+    } catch (e) {
+      console.error('[borrarConfirmados]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
   // ── Guardar terceros del bracket y recalcular puntos ──────
   window._adminGuardarTerceros = async () => {
     try {
@@ -1754,6 +1935,7 @@ async function cargarUsuarios() {
 async function cargarConfig() {
   const snap = await getDoc(doc(db, 'config', 'general'));
   _config = snap.exists() ? snap.data() : {};
+  _tercerosConfirmados = _config.terceros_confirmados || [];
   const infoSnap = await getDoc(doc(db, 'config', 'info_content'));
   if (infoSnap.exists()) {
     _config.mensaje_es = infoSnap.data().mensaje_es || '';
