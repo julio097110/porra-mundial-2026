@@ -265,14 +265,16 @@ export async function abrirModalJugador(uid, nombre) {
     const [
       resGruposSnap, predGruposSnap,
       resElimSnap,   predElimSnap,
-      espSnap,       configSnap
+      espSnap,       configSnap,
+      predTercerosSnap
     ] = await Promise.all([
       getDocs(collection(db, 'resultados')),
       getDocs(query(collection(db, 'predicciones'), where('uid', '==', uid))),
       getDocs(collection(db, 'resultados_elim')),
       getDocs(query(collection(db, 'predicciones_elim'), where('uid', '==', uid))),
       getDoc(doc(db, 'pred_especiales', uid)),
-      getDoc(doc(db, 'config', 'general'))
+      getDoc(doc(db, 'config', 'general')),
+      getDoc(doc(db, 'pred_terceros', uid))
     ]);
 
     // Resultados de grupos
@@ -299,6 +301,11 @@ export async function abrirModalJugador(uid, nombre) {
 
     const esp    = espSnap.exists() ? espSnap.data() : null;
     const config = configSnap.exists() ? configSnap.data() : {};
+
+    // Terceros del jugador y confirmados por FIFA
+    const predTercerosData   = predTercerosSnap.exists() ? predTercerosSnap.data() : null;
+    const equiposTerceros    = predTercerosData?.equipos || [];
+    const tercerosConfirmados = new Set(config.terceros_confirmados || []);
 
     // ── Calcular total ────────────────────────────────────────
     let total = 0;
@@ -329,12 +336,18 @@ export async function abrirModalJugador(uid, nombre) {
     const itemsEsp = calcEspeciales(esp, config, resElim);
     itemsEsp.forEach(e => { total += e.pts; });
 
+    // Puntos de terceros: 0,5 por cada equipo confirmado
+    equiposTerceros.forEach(nombre => {
+      if (tercerosConfirmados.has(nombre)) total += 0.5;
+    });
+
     // ── Render ────────────────────────────────────────────────
     const bodyHtml = renderModalJugador(
       nombre, total,
       gruposConfirmados, predGrupos,
       elimConfirmados, predElim,
-      itemsEsp
+      itemsEsp,
+      equiposTerceros, tercerosConfirmados
     );
 
     document.getElementById('modalBody').innerHTML    = bodyHtml;
@@ -401,7 +414,7 @@ function calcEspeciales(esp, config, resElim) {
 }
 
 // ── Render del cuerpo del modal jugador ──────────────────────
-function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, predElim, itemsEsp) {
+function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, predElim, itemsEsp, equiposTerceros, tercerosConfirmados) {
   let html = '';
 
   // Cabecera con nombre y total
@@ -510,7 +523,45 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
 
   // ── TERCEROS ──────────────────────────────────────────────
   html += `<div class="im-section-title" style="margin-top:10px;">${t('informe.section_thirds')}</div>`;
-  html += `<div class="im-pending">${t('informe.coming_soon')}</div>`;
+
+  if (!equiposTerceros || equiposTerceros.length === 0) {
+    html += `<div class="im-empty">${t('informe.no_thirds')}</div>`;
+  } else {
+    equiposTerceros.forEach(nombre => {
+      const confirmado = tercerosConfirmados.has(nombre);
+      const pts = confirmado ? 0.5 : null; // null = pendiente
+
+      html += `
+        <div class="im-row">
+          <div class="im-match">
+            <div class="im-match-name" style="font-weight:500;">${nombre}</div>
+            <div class="im-pred" style="color:${confirmado ? 'var(--gl)' : 'var(--tm)'};">
+              ${confirmado
+                ? `✅ ${t('thirdPlace.correct')}`
+                : `⏳ ${t('thirdPlace.resultPending')}`}
+            </div>
+          </div>
+          ${confirmado
+            ? ptsBadge(0.5)
+            : `<span style="font-size:11px; color:var(--tm); font-style:italic; flex-shrink:0; width:32px; text-align:center;">?</span>`}
+        </div>`;
+    });
+
+    // Resumen
+    const aciertos = equiposTerceros.filter(n => tercerosConfirmados.has(n)).length;
+    const totalConf = tercerosConfirmados.size;
+    if (totalConf > 0) {
+      html += `
+        <div style="margin-top:8px; padding:8px 12px; background:var(--gg);
+          border:1px solid var(--gp); border-radius:8px;
+          font-size:12px; color:var(--gd); font-weight:600;">
+          ${aciertos}/${totalConf} ${t('informe.thirds_confirmed_label')} · ${(aciertos * 0.5).toFixed(1)} pts
+          ${totalConf < 8
+            ? `<span style="font-weight:400; color:var(--tm); margin-left:6px;">(${8 - totalConf} ${t('informe.thirds_pending_label')})</span>`
+            : ''}
+        </div>`;
+    }
+  }
 
   return html;
 }
