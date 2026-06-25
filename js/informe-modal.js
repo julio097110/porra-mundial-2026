@@ -14,6 +14,7 @@
 // ============================================================
 
 import { db } from './firebase-config.js';
+import { t } from './i18n.js';
 import {
   collection, doc, getDoc, getDocs, query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
@@ -94,15 +95,18 @@ const PARTIDOS_GRUPOS_MAP = {
   "L6":{"local":"Croacia","visitante":"Ghana","grupo":"L"}
 };
 
-// Nombre legible de ronda de eliminatorias
-const NOMBRE_RONDA = {
-  r32:   '1/16',
-  r16:   '1/8',
-  qf:    'Cuartos',
-  semi:  'Semis',
-  '3er': '3er/4º',
-  final: 'Final'
-};
+// Nombre legible de ronda de eliminatorias (usa claves i18n existentes)
+function nombreRonda(ronda) {
+  const claves = {
+    r32:   'knockouts.round16',
+    r16:   'knockouts.round8',
+    qf:    'knockouts.quarterFinal',
+    semi:  'knockouts.semiFinal',
+    '3er': 'knockouts.thirdPlace',
+    final: 'knockouts.final'
+  };
+  return t(claves[ronda] || '') || ronda;
+}
 
 // ── Helpers de cálculo ────────────────────────────────────────
 
@@ -248,12 +252,12 @@ export async function abrirModalJugador(uid, nombre) {
 
   // Mostrar modal con spinner mientras carga
   window.appAbrirModal(
-    `📊 Desglose de puntos`,
+    t('informe.title_player'),
     `<div style="text-align:center; padding:30px; color:#7a9460; font-size:13px;">
        <div class="spinner-sm" style="margin:0 auto 10px;"></div>
-       Cargando desglose…
+       ${t('informe.loading')}
      </div>`,
-    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('informe.close')}</button>`
   );
 
   try {
@@ -335,12 +339,12 @@ export async function abrirModalJugador(uid, nombre) {
 
     document.getElementById('modalBody').innerHTML    = bodyHtml;
     document.getElementById('modalFooter').innerHTML  =
-      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
+      `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('informe.close')}</button>`;
 
   } catch (e) {
     console.error('[abrirModalJugador]', e);
     document.getElementById('modalBody').innerHTML =
-      `<div class="notice error">⚠️ Error al cargar el desglose.</div>`;
+      `<div class="notice error">⚠️ ${t('informe.error')}</div>`;
   }
 }
 
@@ -406,14 +410,14 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
       <span class="im-header-name">${nombre}</span>
       <div>
         <div class="im-header-pts">${total}</div>
-        <div class="im-header-label">puntos</div>
+        <div class="im-header-label">${t('informe.pts_label')}</div>
       </div>
     </div>`;
 
   // ── GRUPOS ────────────────────────────────────────────────
-  html += `<div class="im-section-title">⚽ Grupos</div>`;
+  html += `<div class="im-section-title">${t('informe.section_groups')}</div>`;
   if (!gruposConf.length) {
-    html += `<div class="im-empty">Sin partidos confirmados todavía.</div>`;
+    html += `<div class="im-empty">${t('informe.no_groups')}</div>`;
   } else {
     gruposConf.forEach(([id, res]) => {
       const info = PARTIDOS_GRUPOS_MAP[id] || {};
@@ -433,7 +437,7 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
               <span class="im-result">${res.goles_local}–${res.goles_visitante}</span>
               ${nombreVisitante}
             </div>
-            <div class="im-pred">pred: ${predStr}</div>
+            <div class="im-pred">${t('informe.pred_label')}: ${predStr}</div>
           </div>
           ${ptsBadge(pts)}
         </div>`;
@@ -441,14 +445,14 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
   }
 
   // ── ELIMINATORIAS ─────────────────────────────────────────
-  html += `<div class="im-section-title" style="margin-top:10px;">⚔️ Eliminatorias</div>`;
+  html += `<div class="im-section-title" style="margin-top:10px;">${t('informe.section_knockouts')}</div>`;
   if (!elimConf.length) {
     html += `<div class="im-empty">Sin partidos confirmados todavía.</div>`;
   } else {
     elimConf.forEach(([id, res]) => {
       const pred   = predElim[id];
       const pts    = calcElim(pred, res);
-      const ronda  = NOMBRE_RONDA[res.ronda] || res.ronda || id;
+      const ronda  = nombreRonda(res.ronda) || id;
       const local  = res.equipo_local     || '?';
       const visit  = res.equipo_visitante || '?';
       const pasa   = res.equipo_que_pasa  || '';
@@ -474,7 +478,7 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
               <span class="im-result">${res.goles_local}–${res.goles_visitante}</span>
               ${visit}${pasaStr}
             </div>
-            <div class="im-pred">pred: ${predStr}</div>
+            <div class="im-pred">${t('informe.pred_label')}: ${predStr}</div>
           </div>
           ${ptsBadge(pts)}
         </div>`;
@@ -482,20 +486,20 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
   }
 
   // ── ESPECIALES ────────────────────────────────────────────
-  html += `<div class="im-section-title" style="margin-top:10px;">⭐ Especiales</div>`;
+  html += `<div class="im-section-title" style="margin-top:10px;">${t('informe.section_specials')}</div>`;
   if (!itemsEsp.length) {
-    html += `<div class="im-empty">Sin predicciones especiales.</div>`;
+    html += `<div class="im-empty">${t('informe.no_specials')}</div>`;
   } else {
     itemsEsp.forEach(e => {
-      const realStr = e.pendiente ? '(pendiente)' : (e.realTexto || '—');
+      const realStr = e.pendiente ? t('informe.pending') : (e.realTexto || '—');
       html += `
         <div class="im-row">
           <div class="im-match">
             <div class="im-match-name">
               <span style="font-size:10px; color:#7a9460; font-weight:700; margin-right:4px;">${e.id}</span>
-              real: <span class="im-result" style="color:${e.pendiente ? '#7a9460' : '#639922'};">${realStr}</span>
+              ${t('informe.real_label')}: <span class="im-result" style="color:${e.pendiente ? '#7a9460' : '#639922'};">${realStr}</span>
             </div>
-            <div class="im-pred">pred: ${e.predTexto}</div>
+            <div class="im-pred">${t('informe.pred_label')}: ${e.predTexto}</div>
           </div>
           ${e.pendiente
             ? `<span style="font-size:10px; color:#7a9460; font-style:italic; flex-shrink:0;">?</span>`
@@ -505,8 +509,8 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
   }
 
   // ── TERCEROS ──────────────────────────────────────────────
-  html += `<div class="im-section-title" style="margin-top:10px;">🥉 Mejores terceros</div>`;
-  html += `<div class="im-pending">🚧 Próximamente</div>`;
+  html += `<div class="im-section-title" style="margin-top:10px;">${t('informe.section_thirds')}</div>`;
+  html += `<div class="im-pending">${t('informe.coming_soon')}</div>`;
 
   return html;
 }
@@ -519,10 +523,10 @@ export async function abrirModalPartido(partidoId, esElim) {
   inyectarCSS();
 
   window.appAbrirModal(
-    `📊 Desglose del partido`,
+    t('informe.title_match'),
     `<div style="text-align:center; padding:30px; color:#7a9460; font-size:13px;">
        <div class="spinner-sm" style="margin:0 auto 10px;"></div>
-       Cargando desglose…
+       ${t('informe.loading')}
      </div>`,
     `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`
   );
@@ -536,7 +540,7 @@ export async function abrirModalPartido(partidoId, esElim) {
   } catch (e) {
     console.error('[abrirModalPartido]', e);
     document.getElementById('modalBody').innerHTML =
-      `<div class="notice error">⚠️ Error al cargar el desglose.</div>`;
+      `<div class="notice error">⚠️ ${t('informe.error')}</div>`;
   }
 }
 
@@ -593,7 +597,7 @@ async function _modalPartidoGrupo(partidoId) {
     _renderCabeceraPartido(local, visit, res.goles_local, res.goles_visitante, null, null) +
     _renderTablaPartido(filas);
   document.getElementById('modalFooter').innerHTML =
-    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('informe.close')}</button>`;
 }
 
 // ── Modal partido de eliminatorias ────────────────────────────
@@ -611,7 +615,7 @@ async function _modalPartidoElim(partidoId) {
   }
 
   const res   = resSnap.data();
-  const ronda = NOMBRE_RONDA[res.ronda] || res.ronda || partidoId;
+  const ronda = nombreRonda(res.ronda) || partidoId;
   const local = res.equipo_local     || '?';
   const visit = res.equipo_visitante || '?';
   const pasa  = res.equipo_que_pasa  || '';
@@ -649,7 +653,7 @@ async function _modalPartidoElim(partidoId) {
     _renderCabeceraPartido(local, visit, res.goles_local, res.goles_visitante, ronda, pasa) +
     _renderTablaPartido(filas);
   document.getElementById('modalFooter').innerHTML =
-    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cerrar</button>`;
+    `<button class="btn btn-secondary" onclick="window.appCerrarModal()">${t('informe.close')}</button>`;
 }
 
 // ── Cabecera del modal de partido ─────────────────────────────
@@ -659,14 +663,14 @@ function _renderCabeceraPartido(local, visit, gl, gv, ronda, pasa) {
       ${ronda ? `<div style="font-size:11px; color:rgba(192,221,151,.7); font-weight:700; margin-bottom:4px;">${ronda}</div>` : ''}
       <div class="im-partido-title">${local} vs ${visit}</div>
       <div class="im-partido-score">${gl} — ${gv}</div>
-      ${pasa ? `<div style="font-size:12px; color:#c0dd97; margin-top:4px;">→ Pasa: <strong>${pasa}</strong></div>` : ''}
+      ${pasa ? `<div style="font-size:12px; color:#c0dd97; margin-top:4px;">→ ${t('informe.advances')}: <strong>${pasa}</strong></div>` : ''}
     </div>`;
 }
 
 // ── Tabla de jugadores en el modal de partido ─────────────────
 function _renderTablaPartido(filas) {
   if (!filas.length) {
-    return `<div class="im-empty">Sin predicciones registradas para este partido.</div>`;
+    return `<div class="im-empty">${t('informe.no_match_preds')}</div>`;
   }
 
   const rows = filas.map(f => `
@@ -680,9 +684,9 @@ function _renderTablaPartido(filas) {
     <table class="im-table">
       <thead>
         <tr>
-          <th>Jugador</th>
-          <th>Predicción</th>
-          <th style="text-align:center;">Puntos</th>
+          <th>${t('informe.col_player')}</th>
+          <th>${t('informe.col_prediction')}</th>
+          <th style="text-align:center;">${t('informe.col_points')}</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
