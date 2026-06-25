@@ -31,6 +31,11 @@ export async function initResultados(app) {
   try {
     await cargarResultadosFirestore();
 
+    // Registrar handler de desglose una sola vez al iniciar el módulo,
+    // así está disponible desde el primer render independientemente de
+    // en qué momento se ejecute renderJugador.
+    window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
+
     renderShellResultados(contenedor);
 
     // Refrescar textos al cambiar idioma — delega según la sub-pestaña activa
@@ -146,9 +151,6 @@ function renderJugador(contenedor) {
   html += `</div>`;
   contenedor.innerHTML = html;
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
-
-  // Handler desglose de puntos por partido (grupos)
-  window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
 }
 
 // ══════════════════════════════════════════════════════════════
