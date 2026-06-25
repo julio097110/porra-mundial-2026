@@ -286,6 +286,19 @@
       "officialSet": "Resultado oficial guardado",
       "correctedCol": "Corregido"
     },
+    "bracket": {
+      "confirmedTitle": "Terceros confirmados por FIFA",
+      "confirmedSub": "Márcalos aquí en cuanto la FIFA los anuncie",
+      "confirmedHint": "Equipos confirmados como mejores terceros clasificados:",
+      "confirmed": "confirmados",
+      "currentConfirmed": "Confirmados actualmente",
+      "saveConfirmedBtn": "Guardar y recalcular puntos",
+      "clearConfirmedBtn": "Borrar todos los confirmados",
+      "clearConfirmedConfirm": "¿Seguro que quieres borrar todos los terceros confirmados? Se recalcularán los puntos a 0.",
+      "autoRecalc": "Los puntos se recalculan automáticamente al guardar",
+      "slotsTitle": "Asignación de slots en el bracket R32",
+      "slotsSub": "Asigna manualmente qué tercer clasificado juega cada partido de la Ronda de 32. Solo aparecen los grupos cuyos 3 partidos están confirmados."
+    },
     "integrity": {
       "title": "Integridad de puntos",
       "subtitle": "Compara la suma de los puntos guardados de cada jugador con su total en la clasificación, y recalcula desde cero a partir de resultados y predicciones para verificar que las reglas de puntuación se aplicaron correctamente. Solo lectura, no modifica nada.",
@@ -397,6 +410,9 @@
     "coming_soon": "🚧 Próximamente",
     "no_groups": "Sin partidos confirmados todavía.",
     "no_specials": "Sin predicciones especiales.",
+    "no_thirds": "Sin selección de mejores terceros guardada.",
+    "thirds_confirmed_label": "aciertos confirmados",
+    "thirds_pending_label": "pendiente(s) de confirmar",
     "no_match_preds": "Sin predicciones registradas para este partido.",
     "col_player": "Jugador",
     "col_prediction": "Predicción",
