@@ -18,6 +18,7 @@ import {
   onSnapshot, query, orderBy
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t } from './i18n.js';
+import { abrirModalJugador } from './informe-modal.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
@@ -335,6 +336,9 @@ function renderClasificacion(contenedor) {
   contenedor.innerHTML = html;
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
+  // Handler desglose de puntos por jugador
+  window._verDesglose = (uid, nombre) => abrirModalJugador(uid, nombre);
+
   // Handler paginación
   window._clPagina = (pag) => {
     _paginaActual = pag;
@@ -391,7 +395,16 @@ function renderFilaStandings(jugador, pos, premios, bote, destacado = false) {
         ${!jugador.pagado ? `<span class="s-unpaid-tag">(${t('standings.unpaid')})</span>` : ''}
         ${jugador.esYo ? `<span class="s-you">${t('standings.you')}</span>` : ''}
       </div>
-      <div class="s-pts">${jugador.total}</div>
+      <div class="s-pts" style="display:flex; align-items:center; gap:6px;">
+        ${jugador.total}
+        <button onclick="window._verDesglose('${jugador.uid}', '${jugador.nombre.replace(/'/g, "\\'")}')"
+          title="Ver desglose de puntos"
+          style="background:none; border:none; cursor:pointer; font-size:14px;
+            padding:2px 4px; border-radius:4px; line-height:1; color:var(--tm);
+            transition:color .15s;"
+          onmouseover="this.style.color='var(--gm)'"
+          onmouseout="this.style.color='var(--tm)'">🔍</button>
+      </div>
       <div class="s-diff ${diff < 0 ? 'neg' : ''}">${diffStr}</div>
       ${premioHtml}
     </div>`;
