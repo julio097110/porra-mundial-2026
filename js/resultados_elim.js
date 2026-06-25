@@ -107,6 +107,9 @@ export async function initResultadosElim(app, contenedor) {
     await cargarResultadosElimFirestore();
     await cargarBracketOficial();
 
+    // Registrar handler de desglose una sola vez al iniciar el módulo
+    window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
+
     if (_app.esAdmin) {
       renderAdminElim(contenedor);
     } else {
@@ -226,9 +229,6 @@ function renderJugadorElim(contenedor) {
   html += `</div>`;
   contenedor.innerHTML = html;
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
-
-  // Handler desglose de puntos por partido (eliminatorias)
-  window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
 }
 
 // ── Tarjeta resultado (jugador, solo lectura) ─────────────────
