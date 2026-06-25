@@ -286,6 +286,19 @@
       "officialSet": "Official result saved",
       "correctedCol": "Corrected"
     },
+    "bracket": {
+      "confirmedTitle": "FIFA-confirmed third-place teams",
+      "confirmedSub": "Mark them here as soon as FIFA announces them",
+      "confirmedHint": "Teams confirmed as best third-place qualifiers:",
+      "confirmed": "confirmed",
+      "currentConfirmed": "Currently confirmed",
+      "saveConfirmedBtn": "Save and recalculate points",
+      "clearConfirmedBtn": "Clear all confirmed",
+      "clearConfirmedConfirm": "Are you sure you want to clear all confirmed third-place teams? Points will be recalculated to 0.",
+      "autoRecalc": "Points are recalculated automatically on save",
+      "slotsTitle": "R32 bracket slot assignment",
+      "slotsSub": "Manually assign which third-place team plays in each Round of 32 fixture. Only groups with all 3 matches confirmed are shown."
+    },
     "integrity": {
       "title": "Points integrity",
       "subtitle": "Compares each player's stored points sum with their classification total, and recalculates from scratch using results and predictions to verify the scoring rules were applied correctly. Read-only, changes nothing.",
@@ -397,6 +410,9 @@
     "coming_soon": "🚧 Coming soon",
     "no_groups": "No confirmed matches yet.",
     "no_specials": "No special predictions.",
+    "no_thirds": "No best third-place selection saved.",
+    "thirds_confirmed_label": "confirmed correct",
+    "thirds_pending_label": "pending confirmation",
     "no_match_preds": "No predictions registered for this match.",
     "col_player": "Player",
     "col_prediction": "Prediction",
