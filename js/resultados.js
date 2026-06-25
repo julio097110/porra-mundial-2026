@@ -807,21 +807,14 @@ async function borrarPuntosClasificadosGrupo(grupo) {
 
 export async function recalcularPuntosTerceros() {
   try {
-    // 1. Leer los 8 terceros oficiales del bracket
-    const bracketSnap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
-    if (!bracketSnap.exists()) return;
+    // 1. Leer los terceros confirmados por FIFA desde config/general
+    const configSnap = await getDoc(doc(db, 'config', 'general'));
+    const config = configSnap.exists() ? configSnap.data() : {};
+    const tercerosConfirmados = new Set(config.terceros_confirmados || []);
 
-    const bracket = bracketSnap.data();
-    const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
-    const tercerosOficiales = new Set(
-      IDS_TERCEROS
-        .map(id => bracket[id]?.equipoVisitante)
-        .filter(Boolean)
-    );
-
-    // Solo calcular si los 8 terceros están asignados
-    if (tercerosOficiales.size < 8) {
-      console.log('[puntosTerceros] Aún no están los 8 terceros asignados, se omite el cálculo');
+    // Si no hay ninguno confirmado aún, limpiar puntos y salir
+    if (tercerosConfirmados.size === 0) {
+      await borrarPuntosTerceros();
       return;
     }
 
@@ -835,9 +828,10 @@ export async function recalcularPuntosTerceros() {
       const equipos = data.equipos || [];
       if (!uid) return;
 
+      // Puntuar 0,5 por cada equipo confirmado que el jugador eligió
       let puntos = 0;
       equipos.forEach(nombre => {
-        if (tercerosOficiales.has(nombre)) puntos += 0.5;
+        if (tercerosConfirmados.has(nombre)) puntos += 0.5;
       });
 
       batch.push(
@@ -857,7 +851,7 @@ export async function recalcularPuntosTerceros() {
     await Promise.all(batch);
     await recalcularTotales();
 
-    console.log(`[puntosTerceros] Puntos calculados para ${predSnap.size} jugadores`);
+    console.log(`[puntosTerceros] Puntos calculados para ${predSnap.size} jugadores (${tercerosConfirmados.size} terceros confirmados)`);
   } catch (e) {
     console.error('[recalcularPuntosTerceros]', e);
   }
