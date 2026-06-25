@@ -374,6 +374,13 @@ function renderTarjetaAdminElim(p) {
           <span>${formatMatchDate(p.fechaUTC)}</span>
           <span>📍 ${p.ciudad}</span>
           <span class="match-tag ok">✓ ${t('scores.confirmed')}</span>
+          <button onclick="window._verDesglosePartido('${p.id}', true)"
+            title="Ver puntos de este partido"
+            style="background:none; border:none; cursor:pointer; font-size:13px;
+              padding:2px 4px; border-radius:4px; line-height:1; color:var(--tm);
+              transition:color .15s; margin-left:2px;"
+            onmouseover="this.style.color='var(--gm)'"
+            onmouseout="this.style.color='var(--tm)'">🔍</button>
         </div>
         <div class="match-row">
           <div class="match-team">
