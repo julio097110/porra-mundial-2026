@@ -46,6 +46,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_ELIM, getPartidoElimPorId, getPartidosElimPorRonda } from '../data/partidos_elim.js';
+import { abrirModalPartido } from './informe-modal.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app             = null;
@@ -225,6 +226,9 @@ function renderJugadorElim(contenedor) {
   html += `</div>`;
   contenedor.innerHTML = html;
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
+
+  // Handler desglose de puntos por partido (eliminatorias)
+  window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
 }
 
 // ── Tarjeta resultado (jugador, solo lectura) ─────────────────
@@ -266,6 +270,15 @@ function renderTarjetaResultadoElim(p) {
         ${confirmado
           ? `<span class="match-tag ok">✓ ${t('scores.confirmed')}</span>`
           : `<span class="match-tag pend">${t('scores.pending')}</span>`}
+        ${confirmado
+          ? `<button onclick="window._verDesglosePartido('${p.id}', true)"
+              title="Ver puntos de este partido"
+              style="background:none; border:none; cursor:pointer; font-size:13px;
+                padding:2px 4px; border-radius:4px; line-height:1; color:var(--tm);
+                transition:color .15s; margin-left:2px;"
+              onmouseover="this.style.color='var(--gm)'"
+              onmouseout="this.style.color='var(--tm)'">🔍</button>`
+          : ''}
       </div>
       <div class="match-row">
         <div class="match-team">
