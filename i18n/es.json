@@ -417,6 +417,8 @@
     "col_player": "Jugador",
     "col_prediction": "Predicción",
     "col_points": "Puntos",
-    "error": "Error al cargar el desglose."
+    "error": "Error al cargar el desglose.",
+    "section_qualified": "🏅 Clasificados de grupo",
+    "no_qualified": "Sin grupos completados todavía."
   }
 }
