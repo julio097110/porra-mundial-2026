@@ -417,6 +417,8 @@
     "col_player": "Player",
     "col_prediction": "Prediction",
     "col_points": "Points",
-    "error": "Error loading breakdown."
+    "error": "Error loading breakdown.",
+    "section_qualified": "🏅 Group qualifiers",
+    "no_qualified": "No completed groups yet."
   }
 }
