@@ -32,6 +32,7 @@ let _plazoGrupos = true;
 let _plazoElim   = true;
 let _plazoTerceros = true;
 let _config      = {};
+let _totalGlobal = null;
 
 // ── Punto de entrada ─────────────────────────────────────────
 export async function initMiPorra(app) {
@@ -53,7 +54,8 @@ export async function initMiPorra(app) {
       cargarPrediccionesEspeciales(),
       cargarPrediccionesTerceros(),
       cargarResultados(),
-      cargarBracket()
+      cargarBracket(),
+      cargarTotalGlobal()
     ]);
 
     renderMiPorra(contenedor);
@@ -1430,6 +1432,11 @@ async function cargarBracket() {
   if (snap.exists()) _bracket = snap.data();
 }
 
+async function cargarTotalGlobal() {
+  const snap = await getDoc(doc(db, 'clasificacion', _app.uid));
+  _totalGlobal = snap.exists() ? (snap.data().total ?? null) : null;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════════════════════════
@@ -1447,7 +1454,7 @@ function calcularStats() {
       ganador++; puntos += 1;
     }
   });
-  return { jugados, exactos, ganador, puntos };
+  return { jugados, exactos, ganador, puntos: _totalGlobal ?? puntos };
 }
 
 function signo(a, b) {
