@@ -5,7 +5,7 @@
 //  Exporta:
 //    abrirModalJugador(uid, nombre)
 //      → modal con desglose completo de un jugador
-//        (grupos, eliminatorias, especiales, terceros)
+//        (grupos, clasificados de grupo, eliminatorias, especiales, terceros)
 //    abrirModalPartido(partidoId, esElim)
 //      → modal con puntos de todos los jugadores en un partido
 //
@@ -169,6 +169,66 @@ function ptsBadge(pts) {
     flex-shrink:0; ${style}">${label}</span>`;
 }
 
+// ── Helpers para clasificados de grupo ────────────────────────
+
+function _getPartidosDeGrupo(grupo) {
+  return Object.entries(PARTIDOS_GRUPOS_MAP)
+    .filter(([, info]) => info.grupo === grupo)
+    .map(([id, info]) => ({ id, local: info.local, visitante: info.visitante }));
+}
+
+function _sortTabla(equipos) {
+  return equipos.sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    const gdA = a.gf - a.gc, gdB = b.gf - b.gc;
+    if (gdB !== gdA) return gdB - gdA;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
+function _calcTablaGrupoReal(grupo, resGrupos) {
+  const partidos = _getPartidosDeGrupo(grupo);
+  const map = {};
+  partidos.forEach(p => {
+    map[p.local]     = map[p.local]     || { nombre: p.local,     pts: 0, gf: 0, gc: 0 };
+    map[p.visitante] = map[p.visitante] || { nombre: p.visitante, pts: 0, gf: 0, gc: 0 };
+  });
+  partidos.forEach(p => {
+    const r = resGrupos[p.id];
+    if (!r?.confirmado) return;
+    const gl = r.goles_local, gv = r.goles_visitante;
+    map[p.local].gf     += gl; map[p.local].gc     += gv;
+    map[p.visitante].gf += gv; map[p.visitante].gc += gl;
+    if      (gl > gv)  { map[p.local].pts += 3; }
+    else if (gl === gv){ map[p.local].pts += 1; map[p.visitante].pts += 1; }
+    else               { map[p.visitante].pts += 3; }
+  });
+  return _sortTabla(Object.values(map));
+}
+
+function _calcTablaGrupoPrediccion(grupo, predGrupos) {
+  const partidos = _getPartidosDeGrupo(grupo);
+  const map = {};
+  partidos.forEach(p => {
+    map[p.local]     = map[p.local]     || { nombre: p.local,     pts: 0, gf: 0, gc: 0 };
+    map[p.visitante] = map[p.visitante] || { nombre: p.visitante, pts: 0, gf: 0, gc: 0 };
+  });
+  partidos.forEach(p => {
+    const pred = predGrupos[p.id];
+    if (!pred) return;
+    const gl = parseInt(pred.local     ?? pred.goles_local     ?? '');
+    const gv = parseInt(pred.visitante ?? pred.goles_visitante ?? '');
+    if (isNaN(gl) || isNaN(gv)) return;
+    map[p.local].gf     += gl; map[p.local].gc     += gv;
+    map[p.visitante].gf += gv; map[p.visitante].gc += gl;
+    if      (gl > gv)  { map[p.local].pts += 3; }
+    else if (gl === gv){ map[p.local].pts += 1; map[p.visitante].pts += 1; }
+    else               { map[p.visitante].pts += 3; }
+  });
+  return _sortTabla(Object.values(map));
+}
+
 // ── Estilos del modal ─────────────────────────────────────────
 const CSS_MODAL = `
   .im-section-title {
@@ -303,8 +363,8 @@ export async function abrirModalJugador(uid, nombre) {
     const config = configSnap.exists() ? configSnap.data() : {};
 
     // Terceros del jugador y confirmados por FIFA
-    const predTercerosData   = predTercerosSnap.exists() ? predTercerosSnap.data() : null;
-    const equiposTerceros    = predTercerosData?.equipos || [];
+    const predTercerosData    = predTercerosSnap.exists() ? predTercerosSnap.data() : null;
+    const equiposTerceros     = predTercerosData?.equipos || [];
     const tercerosConfirmados = new Set(config.terceros_confirmados || []);
 
     // ── Calcular total ────────────────────────────────────────
@@ -341,10 +401,37 @@ export async function abrirModalJugador(uid, nombre) {
       if (tercerosConfirmados.has(nombre)) total += 0.5;
     });
 
+    // ── Clasificados de grupo ─────────────────────────────────
+    const GRUPOS_LETRAS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+    const clasificadosGrupos = [];
+
+    GRUPOS_LETRAS.forEach(grupo => {
+      const partidos = _getPartidosDeGrupo(grupo);
+      const todoConfirmado = partidos.every(p => resGrupos[p.id]?.confirmado);
+      if (!todoConfirmado) return;
+
+      const tablaReal = _calcTablaGrupoReal(grupo, resGrupos);
+      const realesSet = new Set([tablaReal[0]?.nombre, tablaReal[1]?.nombre].filter(Boolean));
+      const real1     = tablaReal[0]?.nombre || '?';
+      const real2     = tablaReal[1]?.nombre || '?';
+
+      const tablaPred = _calcTablaGrupoPrediccion(grupo, predGrupos);
+      const pred1     = tablaPred[0]?.nombre || '?';
+      const pred2     = tablaPred[1]?.nombre || '?';
+
+      let puntos = 0;
+      if (pred1 !== '?' && realesSet.has(pred1)) puntos++;
+      if (pred2 !== '?' && realesSet.has(pred2)) puntos++;
+
+      clasificadosGrupos.push({ grupo, pred1, pred2, real1, real2, realesSet, puntos });
+      total += puntos;
+    });
+
     // ── Render ────────────────────────────────────────────────
     const bodyHtml = renderModalJugador(
       nombre, total,
       gruposConfirmados, predGrupos,
+      clasificadosGrupos,
       elimConfirmados, predElim,
       itemsEsp,
       equiposTerceros, tercerosConfirmados
@@ -414,7 +501,7 @@ function calcEspeciales(esp, config, resElim) {
 }
 
 // ── Render del cuerpo del modal jugador ──────────────────────
-function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, predElim, itemsEsp, equiposTerceros, tercerosConfirmados) {
+function renderModalJugador(nombre, total, gruposConf, predGrupos, clasificadosGrupos, elimConf, predElim, itemsEsp, equiposTerceros, tercerosConfirmados) {
   let html = '';
 
   // Cabecera con nombre y total
@@ -453,6 +540,35 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, elimConf, pre
             <div class="im-pred">${t('informe.pred_label')}: ${predStr}</div>
           </div>
           ${ptsBadge(pts)}
+        </div>`;
+    });
+  }
+
+  // ── CLASIFICADOS DE GRUPO ─────────────────────────────────
+  html += `<div class="im-section-title" style="margin-top:10px;">${t('informe.section_qualified')}</div>`;
+  if (!clasificadosGrupos.length) {
+    html += `<div class="im-empty">${t('informe.no_qualified')}</div>`;
+  } else {
+    clasificadosGrupos.forEach(({ grupo, pred1, pred2, real1, real2, realesSet, puntos }) => {
+      const p1ok = realesSet.has(pred1);
+      const p2ok = realesSet.has(pred2);
+      html += `
+        <div class="im-row">
+          <div class="im-match">
+            <div class="im-match-name" style="font-size:11px; font-weight:700; color:#4a6630; letter-spacing:.4px;">
+              ${t('common.group')} ${grupo}
+            </div>
+            <div class="im-pred">
+              ${t('informe.pred_label')}:
+              <span style="color:${p1ok ? '#639922' : '#c0392b'}; font-weight:600;">${pred1}</span>
+              ·
+              <span style="color:${p2ok ? '#639922' : '#c0392b'}; font-weight:600;">${pred2}</span>
+            </div>
+            <div class="im-pred">
+              ${t('informe.real_label')}: ${real1} · ${real2}
+            </div>
+          </div>
+          ${ptsBadge(puntos)}
         </div>`;
     });
   }
