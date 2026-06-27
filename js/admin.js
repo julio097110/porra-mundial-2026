@@ -8,7 +8,7 @@
 import { db } from './firebase-config.js';
 import {
   collection, doc, getDoc, getDocs, setDoc,
-  updateDoc, deleteDoc, serverTimestamp,
+  updateDoc, deleteDoc, writeBatch, serverTimestamp,
   query, where, orderBy, limit, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t } from './i18n.js';
@@ -90,6 +90,7 @@ function renderAdmin(contenedor) {
         ${menuItem('bracket',      '🏆', 'Bracket',
           Object.values(_bracket).filter(p => p?.terceroPendiente).length || 0)}
         ${menuItem('integridad',   '🔍', t('admin.integrity.title'))}
+        ${menuItem('limpiarElim',  '🗑️', 'Limpiar Elim.')}
         ${menuItem('mimimi',       '😭', 'Mimimi')}
       </div>
 
@@ -137,6 +138,7 @@ function renderSeccion() {
     case 'especiales':    return renderEspecialesAdmin();
     case 'bracket':       return renderBracketAdmin();
     case 'integridad':    return renderIntegridad();
+    case 'limpiarElim':   return renderLimpiarElim();
     case 'mimimi':        return renderMimimi();
     default:              return renderResumen();
   }
@@ -1045,6 +1047,74 @@ function modalJugador(uid = null) {
 //  INTEGRIDAD
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+//  LIMPIAR PREDICCIONES DE ELIMINATORIAS
+// ══════════════════════════════════════════════════════════════
+
+function renderLimpiarElim() {
+  return `
+    <div>
+      <div style="font-size:14px; font-weight:600; color:var(--gd); margin-bottom:4px;">
+        🗑️ Limpiar predicciones de eliminatorias
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:16px;">
+        Borra las predicciones de eliminatorias de <strong>todos los jugadores</strong> a la vez.
+        Útil cuando se ha corregido el bracket y los jugadores necesitan rehacerlo desde cero.
+      </div>
+
+      <div class="card" style="margin-bottom:16px; border-left:3px solid var(--r);">
+        <div class="card-body">
+          <div style="font-size:12px; color:var(--r); font-weight:600; margin-bottom:6px;">
+            ⚠️ Acción irreversible
+          </div>
+          <div style="font-size:12px; color:var(--tm); margin-bottom:12px;">
+            Esta acción elimina permanentemente todas las predicciones de eliminatorias
+            de la base de datos. Los jugadores deberán rellenarlas de nuevo.
+            Las predicciones de grupos, especiales y mejores terceros <strong>no se ven afectadas</strong>.
+          </div>
+          <button class="btn btn-sm" id="btnContarElim"
+            style="background:var(--gm); color:#fff; margin-bottom:0;"
+            onclick="window._adminContarElim()">
+            🔍 Comprobar cuántas predicciones hay
+          </button>
+        </div>
+      </div>
+
+      <div id="limpiarElimResultado"></div>
+    </div>`;
+}
+
+function renderLimpiarElimResultado(count) {
+  if (count === 0) {
+    return `<div class="notice" style="background:var(--succ); color:var(--succt);">
+      ✅ No hay predicciones de eliminatorias guardadas. La colección está vacía.
+    </div>`;
+  }
+  return `
+    <div class="card" style="border-left:3px solid var(--r);">
+      <div class="card-body">
+        <div style="font-size:13px; font-weight:600; color:var(--t); margin-bottom:8px;">
+          Se encontraron <strong>${count}</strong> predicción${count !== 1 ? 'es' : ''} de eliminatorias.
+        </div>
+        <div style="font-size:12px; color:var(--tm); margin-bottom:14px;">
+          ¿Seguro que quieres borrarlas todas? Esta acción no se puede deshacer.
+          Los jugadores recibirán el bracket en blanco la próxima vez que entren.
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm"
+            onclick="document.getElementById('limpiarElimResultado').innerHTML=''">
+            Cancelar
+          </button>
+          <button class="btn btn-sm" id="btnBorrarElim"
+            style="background:var(--r); color:#fff;"
+            onclick="window._adminBorrarElim(${count})">
+            🗑️ Sí, borrar las ${count} predicciones
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderIntegridad() {
   return `
     <div>
@@ -1708,6 +1778,50 @@ function registrarHandlers() {
     } catch (e) {
       console.error('[adminBorrarPred]', e);
       window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  // ── Limpiar predicciones de eliminatorias (todas) ────────
+  window._adminContarElim = async () => {
+    const btn = document.getElementById('btnContarElim');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Contando...'; }
+    try {
+      const snap = await getDocs(collection(db, 'predicciones_elim'));
+      const count = snap.size;
+      const el = document.getElementById('limpiarElimResultado');
+      if (el) el.innerHTML = renderLimpiarElimResultado(count);
+    } catch (e) {
+      console.error('[adminContarElim]', e);
+      window.mostrarToast('❌ Error al contar predicciones', 4000);
+    } finally {
+      const btn2 = document.getElementById('btnContarElim');
+      if (btn2) { btn2.disabled = false; btn2.textContent = '🔍 Comprobar cuántas predicciones hay'; }
+    }
+  };
+
+  window._adminBorrarElim = async (count) => {
+    const btn = document.getElementById('btnBorrarElim');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Borrando...'; }
+    try {
+      const snap = await getDocs(collection(db, 'predicciones_elim'));
+      if (snap.empty) {
+        window.mostrarToast('ℹ️ No había predicciones que borrar');
+        return;
+      }
+      // Borrado en lotes de 500 (límite de writeBatch)
+      const CHUNK = 500;
+      const docs  = snap.docs;
+      for (let i = 0; i < docs.length; i += CHUNK) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+      window.mostrarToast(`✅ ${docs.length} predicción${docs.length !== 1 ? 'es' : ''} de eliminatorias borrada${docs.length !== 1 ? 's' : ''}`);
+      const el = document.getElementById('limpiarElimResultado');
+      if (el) el.innerHTML = renderLimpiarElimResultado(0);
+    } catch (e) {
+      console.error('[adminBorrarElim]', e);
+      window.mostrarToast('❌ Error al borrar predicciones', 5000);
     }
   };
 
