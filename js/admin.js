@@ -902,6 +902,7 @@ function renderBracketAdmin() {
     const opciones = p.grupos.map(g => {
       const tercero = tercerosDisponibles[g];
       if (!tercero.nombre) return null;
+      if (!confirmadosSet.has(tercero.nombre)) return null;
       const selected = equipoActual === tercero.nombre ? 'selected' : '';
       const disabled = !tercero.completo ? 'disabled' : '';
       const label    = tercero.completo
@@ -1924,7 +1925,7 @@ function registrarHandlers() {
         return;
       }
 
-      await setDoc(doc(db, 'config', 'bracket_eliminatorias'), updates, { merge: true });
+      await updateDoc(doc(db, 'config', 'bracket_eliminatorias'), updates);
 
       // Si los 8 terceros están asignados, recalcular puntos de terceros
       const todosAsignados = IDS_TERCEROS.every(id => _bracket[id]?.equipoVisitante);
