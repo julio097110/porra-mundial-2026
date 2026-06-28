@@ -502,7 +502,6 @@ function renderTerceros(contenedor) {
   const fechaStr = formatFechaLimite(_config.fecha_limite_terceros);
 
   const seleccionados = _predTerceros.length;
-  // Mapa grupo → equipo seleccionado por el jugador en ese grupo
   const selPorGrupo = {};
   _predTerceros.forEach(nombre => {
     const partido = PARTIDOS_GRUPOS.find(p => p.local === nombre || p.visitante === nombre);
@@ -513,9 +512,7 @@ function renderTerceros(contenedor) {
     ? `<div class="notice locked">🔒 ${t('thirdPlace.closedNotice')}</div>`
     : `<div class="notice">🔓 ${t('thirdPlace.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`;
 
-  // ── Vista bloqueada ────────────────────────────────────────
   if (cerrado) {
-    // Leer terceros confirmados por FIFA desde config/general
     const tercerosConfirmados = new Set(_config.terceros_confirmados || []);
     const hayConfirmados = tercerosConfirmados.size > 0;
 
@@ -539,8 +536,6 @@ function renderTerceros(contenedor) {
         const eq = EQUIPOS_48.find(e => e.nombre === nombre);
         const flag = eq?.flag || '';
         const esCorrecto = tercerosConfirmados.has(nombre);
-        // Solo mostramos ✅/❌ si ese equipo ya tiene confirmación
-        // Si no está confirmado aún mostramos ⏳
         const icono = hayConfirmados && tercerosConfirmados.size === 8
           ? (esCorrecto ? '✅' : '❌')
           : esCorrecto
@@ -581,7 +576,6 @@ function renderTerceros(contenedor) {
     return;
   }
 
-  // ── Vista editable ─────────────────────────────────────────
   let html = `
     ${plazoInfo}
     <div style="margin-top:12px;">
@@ -592,7 +586,6 @@ function renderTerceros(contenedor) {
         Elige 1 equipo de cada grupo que crees que pasará como mejor tercero. Máximo 8 grupos.
       </div>
 
-      <!-- Contador -->
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; padding:8px 12px;
         background:${seleccionados === 8 ? 'var(--gl-pale,#f0f7e8)' : '#f7faf2'};
         border:1px solid ${seleccionados === 8 ? 'var(--gl)' : 'var(--gp)'};
@@ -607,11 +600,10 @@ function renderTerceros(contenedor) {
       </div>
   `;
 
-  // 12 grupos, cada uno con sus 4 equipos
   GRUPOS.forEach(g => {
     const equiposGrupo = obtenerEquiposGrupo(g);
     const selEnGrupo   = selPorGrupo[g] || null;
-    const grupoCompleto = seleccionados >= 8 && !selEnGrupo; // ya hay 8 y este grupo no tiene ninguno
+    const grupoCompleto = seleccionados >= 8 && !selEnGrupo;
 
     html += `
       <div style="margin-bottom:10px; padding:10px 12px;
@@ -672,19 +664,15 @@ function renderTerceros(contenedor) {
 
   contenedor.innerHTML = html;
 
-  // Handler: 1 equipo por grupo, radio-button behavior
   window._onTerceroChange = (grupo, nombre) => {
     const anteriorEnGrupo = selPorGrupo[grupo];
 
     if (anteriorEnGrupo === nombre) {
-      // Deseleccionar
       _predTerceros = _predTerceros.filter(n => n !== nombre);
     } else {
-      // Si ya había uno de este grupo, lo sustituimos
       if (anteriorEnGrupo) {
         _predTerceros = _predTerceros.filter(n => n !== anteriorEnGrupo);
       }
-      // Comprobar límite de 8 (solo si no había uno en este grupo)
       if (!anteriorEnGrupo && _predTerceros.length >= 8) {
         window.mostrarToast('⚠️ ' + t('thirdPlace.maxWarning'), 3000);
         const cb = document.getElementById(`t_${grupo}_${nombre.replace(/\s/g,'_')}`);
@@ -925,13 +913,6 @@ function renderEliminatorias(contenedor) {
 }
 
 function renderBracketSVG(cerrado) {
-  // Bracket simétrico: R32(exterior) → R16 → QF → SF → FINAL(centro)
-  // Intervalo entre R32: 110px (76px card + 34px gap, cabe el botón de desempate)
-  // R32 tops: 24, 134, 244, 354, 464, 574, 684, 794  → centers: 62,172,282,392,502,612,722,832
-  // r16 tops: 79, 298, 518, 738  → centers: 117, 336, 556, 776
-  // qf  tops: 188, 628           → centers: 226, 666
-  // sf  top:  408                → center:  446
-  // final top: 408   3er top: 530
   return `
     <svg style="position:absolute;top:0;left:0;width:1300px;height:880px;pointer-events:none;overflow:visible;">
       <!-- ── IZQUIERDA: R32 → R16 ── -->
@@ -1028,8 +1009,6 @@ function renderBracketSVG(cerrado) {
 function renderBracketPartidos(cerrado) {
   let html = '';
 
-  // ── Etiquetas de columnas ──────────────────────────────────
-  // Izquierda (left→center)
   const colsL = [
     { label: '1/16',      x: 0   },
     { label: '1/8',       x: 145 },
@@ -1040,7 +1019,6 @@ function renderBracketPartidos(cerrado) {
     html += `<div class="bracket-col-label" style="left:${c.x}px;top:6px;width:130px;">${c.label}</div>`;
   });
   html += `<div class="bracket-col-label" style="left:580px;top:6px;width:140px;text-align:center;">🏆 Final</div>`;
-  // Derecha (right→center)
   const colsR = [
     { label: 'Semis',     x: 735  },
     { label: 'Cuartos',   x: 880  },
@@ -1052,10 +1030,7 @@ function renderBracketPartidos(cerrado) {
   });
   html += `<div class="bracket-col-label" style="left:580px;top:530px;width:140px;text-align:center;color:var(--tm);">🥉 3er puesto</div>`;
 
-  // ── IZQUIERDA: R32 (x=0) ─────────────────────────────────
-  // Grupo superior (→ r16_1 → qf_1): r32_3, r32_6, r32_1, r32_4
-  // Grupo inferior (→ r16_5 + r16_6 → qf_2): r32_11, r32_12, r32_9, r32_10
-  const r32L = obtenerPartidos16();           // 16 partidos ordenados por bracket
+  const r32L = obtenerPartidos16();
   const posR32L = [
     { id:'r32_3',  top:24  }, { id:'r32_6',  top:134 },
     { id:'r32_1',  top:244 }, { id:'r32_4',  top:354 },
@@ -1067,7 +1042,6 @@ function renderBracketPartidos(cerrado) {
     if (p) html += renderBracketMatch(p, 0, top, cerrado, '1/16');
   });
 
-  // ── IZQUIERDA: R16 (x=145) ──────────────────────────────
   const partidos8 = obtenerPartidosFase('1/8');
   const posR16L = [
     { id:'r16_1', top:79  },
@@ -1080,7 +1054,6 @@ function renderBracketPartidos(cerrado) {
     if (p) html += renderBracketMatch(p, 145, top, cerrado, '1/8');
   });
 
-  // ── IZQUIERDA: QF (x=290) ───────────────────────────────
   const partidosCuartos = obtenerPartidosFase('1/4');
   const posQFL = [
     { id:'qf_1', top:189 },
@@ -1091,12 +1064,10 @@ function renderBracketPartidos(cerrado) {
     if (p) html += renderBracketMatch(p, 290, top, cerrado, '1/4');
   });
 
-  // ── IZQUIERDA: SF (x=435) ───────────────────────────────
   const partidosSemis = obtenerPartidosFase('semi');
   const sf1 = partidosSemis.find(x => x.id === 'sf_1');
   if (sf1) html += renderBracketMatch(sf1, 435, 409, cerrado, 'semi');
 
-  // ── CENTRO: FINAL (x=580) ───────────────────────────────
   const final = obtenerPartidosFase('final')[0];
   if (final) {
     html += renderBracketMatch({ ...final, esFinal: true }, 580, 409, cerrado, 'final');
@@ -1114,15 +1085,12 @@ function renderBracketPartidos(cerrado) {
       </div>`;
   }
 
-  // ── CENTRO: 3er PUESTO (x=580) ─────────────────────────
   const tercero = obtenerPartidosFase('3er')[0];
   if (tercero) html += renderBracketMatch(tercero, 580, 548, cerrado, '3er');
 
-  // ── DERECHA: SF (x=735) ─────────────────────────────────
   const sf2 = partidosSemis.find(x => x.id === 'sf_2');
   if (sf2) html += renderBracketMatch(sf2, 735, 409, cerrado, 'semi');
 
-  // ── DERECHA: QF (x=880) ─────────────────────────────────
   const posQFR = [
     { id:'qf_3', top:189 },
     { id:'qf_4', top:629 },
@@ -1132,7 +1100,6 @@ function renderBracketPartidos(cerrado) {
     if (p) html += renderBracketMatch(p, 880, top, cerrado, '1/4');
   });
 
-  // ── DERECHA: R16 (x=1025) ───────────────────────────────
   const posR16R = [
     { id:'r16_3', top:79  },
     { id:'r16_4', top:299 },
@@ -1144,7 +1111,6 @@ function renderBracketPartidos(cerrado) {
     if (p) html += renderBracketMatch(p, 1025, top, cerrado, '1/8');
   });
 
-  // ── DERECHA: R32 (x=1170) ───────────────────────────────
   const posR32R = [
     { id:'r32_2',  top:24  }, { id:'r32_5',  top:134 },
     { id:'r32_7',  top:244 }, { id:'r32_8',  top:354 },
@@ -1284,19 +1250,21 @@ function obtenerPartidosFase(fase) {
   };
 
   return (fases[fase] || []).map(c => {
-    const datoAPI  = _bracket[c.id] || {};
     const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
     const esTercero = c.id === 'tp_1';
-    const equipL = datoAPI.equipoLocal     || (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null;
-    const equipV = datoAPI.equipoVisitante || (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null;
+    // ── FIX: los equipos en R16+ siempre vienen de la propagación del jugador,
+    //         nunca de datoAPI (config/bracket_eliminatorias), que podía tener
+    //         datos obsoletos que sobreescribían el cuadro correcto. ──────────
+    const equipL = (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null;
+    const equipV = (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null;
     return {
       ...c,
       fechaUTC:        elimData?.fechaUTC || null,
       desbloqueado:    true,
       equipoLocal:     equipL,
       equipoVisitante: equipV,
-      flagLocal:       datoAPI.flagLocal     || buscarFlag(equipL) || '',
-      flagVisitante:   datoAPI.flagVisitante || buscarFlag(equipV) || '',
+      flagLocal:       buscarFlag(equipL) || '',
+      flagVisitante:   buscarFlag(equipV) || '',
     };
   });
 }
@@ -1514,7 +1482,6 @@ async function guardarPrediccionesTerceros() {
     );
     window.mostrarToast('✅ ' + t('thirdPlace.savedOk'));
 
-    // ── NUEVO: email de confirmación al admin ─────────────────
     try {
       const { enviarEmailPredicciones } = await import('./email.js');
       await enviarEmailPredicciones(_app.usuario, _predTerceros, 'terceros');
@@ -1560,127 +1527,4 @@ async function cargarPrediccionesEspeciales() {
 async function cargarPrediccionesTerceros() {
   try {
     const snap = await getDoc(doc(db, 'pred_terceros', _app.uid));
-    if (snap.exists()) _predTerceros = snap.data().equipos || [];
-  } catch (e) {
-    _predTerceros = [];
-  }
-}
-
-async function cargarResultados() {
-  const snap = await getDocs(collection(db, 'resultados'));
-  snap.forEach(d => { _resultados[d.id] = d.data(); });
-}
-
-async function cargarBracket() {
-  const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
-  if (snap.exists()) _bracket = snap.data();
-}
-
-async function cargarTotalGlobal() {
-  const snap = await getDoc(doc(db, 'clasificacion', _app.uid));
-  _totalGlobal = snap.exists() ? (snap.data().total ?? null) : null;
-}
-
-// ══════════════════════════════════════════════════════════════
-//  HELPERS
-// ══════════════════════════════════════════════════════════════
-
-function calcularStats() {
-  let jugados = 0, exactos = 0, ganador = 0, puntos = 0;
-  PARTIDOS_GRUPOS.forEach(p => {
-    const res  = _resultados[p.id];
-    const pred = _predGrupos[p.id];
-    if (!res || !pred) return;
-    jugados++;
-    if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) {
-      exactos++; puntos += 3;
-    } else if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) {
-      ganador++; puntos += 1;
-    }
-  });
-  return { jugados, exactos, ganador, puntos: _totalGlobal ?? puntos };
-}
-
-function signo(a, b) {
-  if (a > b)  return 1;
-  if (a < b)  return -1;
-  return 0;
-}
-
-function clasePredGrupo(pred, res) {
-  if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) return 'pred-exact';
-  if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) return 'pred-winner';
-  return 'pred-miss';
-}
-
-function badgePuntosGrupo(pred, res) {
-  if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) {
-    return `<span class="pts-badge pts-exact">+3 pts ${t('myPool.exactResult')}</span>`;
-  }
-  if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) {
-    return `<span class="pts-badge pts-winner">+1 pt ${t('myPool.winnerOk')}</span>`;
-  }
-  return `<span class="pts-badge pts-miss">0 pts ${t('myPool.missed')}</span>`;
-}
-
-function buscarFlag(nombre) {
-  if (!nombre) return '';
-  const eq = EQUIPOS_48.find(e => e.nombre.toLowerCase() === nombre.toLowerCase());
-  return eq ? eq.flag : '';
-}
-
-function formatFechaLimite(campo) {
-  if (!campo) return '—';
-  try {
-    const d = campo.toDate ? campo.toDate() : new Date(campo);
-    return d.toLocaleString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-  } catch { return '—'; }
-}
-
-// ── Autocompletado de equipos ──────────────────────────────────
-window._onEspInput = (campo, valor) => {
-  _predEsp[campo] = valor;
-  const lista = document.getElementById(`ac_${campo}`);
-  if (!lista) return;
-  if (valor.length < 2) { lista.classList.add('hidden'); return; }
-
-  const matches = EQUIPOS_48.filter(e =>
-    e.nombre.toLowerCase().includes(valor.toLowerCase())
-  ).slice(0, 6);
-
-  if (!matches.length) { lista.classList.add('hidden'); return; }
-
-  lista.innerHTML = matches.map(e =>
-    `<div class="autocomplete-item" onclick="window._seleccionarEquipo('${campo}','${e.nombre}','${e.flag}')">
-      <span style="font-size:16px;">${e.flag}</span> ${e.nombre}
-    </div>`
-  ).join('');
-  lista.classList.remove('hidden');
-};
-
-window._seleccionarEquipo = (campo, nombre, flag) => {
-  _predEsp[campo] = nombre;
-  const input = document.getElementById(`esp_${campo}`);
-  const lista  = document.getElementById(`ac_${campo}`);
-  const hint   = document.getElementById(`hint_${campo}`);
-  if (input) input.value = nombre;
-  if (lista) lista.classList.add('hidden');
-  if (hint)  { hint.textContent = flag + ' ' + nombre; hint.classList.remove('missing'); }
-};
-
-window._onEspDirecto = (campo, valor) => {
-  _predEsp[campo] = valor;
-  const hint = document.getElementById(`hint_${campo}`);
-  if (hint) {
-    hint.textContent = valor ? '✓ ' + valor : t('specials.missingWarning');
-    hint.classList.toggle('missing', !valor);
-  }
-};
-
-window._guardarEspeciales = () => guardarPrediccionesEspeciales();
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.autocomplete-wrap')) {
-    document.querySelectorAll('.autocomplete-list').forEach(l => l.classList.add('hidden'));
-  }
-});
+   
