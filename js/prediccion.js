@@ -1527,4 +1527,127 @@ async function cargarPrediccionesEspeciales() {
 async function cargarPrediccionesTerceros() {
   try {
     const snap = await getDoc(doc(db, 'pred_terceros', _app.uid));
-   
+   if (snap.exists()) _predTerceros = snap.data().equipos || [];
+  } catch (e) {
+    _predTerceros = [];
+  }
+}
+
+async function cargarResultados() {
+  const snap = await getDocs(collection(db, 'resultados'));
+  snap.forEach(d => { _resultados[d.id] = d.data(); });
+}
+
+async function cargarBracket() {
+  const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
+  if (snap.exists()) _bracket = snap.data();
+}
+
+async function cargarTotalGlobal() {
+  const snap = await getDoc(doc(db, 'clasificacion', _app.uid));
+  _totalGlobal = snap.exists() ? (snap.data().total ?? null) : null;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════
+
+function calcularStats() {
+  let jugados = 0, exactos = 0, ganador = 0, puntos = 0;
+  PARTIDOS_GRUPOS.forEach(p => {
+    const res  = _resultados[p.id];
+    const pred = _predGrupos[p.id];
+    if (!res || !pred) return;
+    jugados++;
+    if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) {
+      exactos++; puntos += 3;
+    } else if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) {
+      ganador++; puntos += 1;
+    }
+  });
+  return { jugados, exactos, ganador, puntos: _totalGlobal ?? puntos };
+}
+
+function signo(a, b) {
+  if (a > b)  return 1;
+  if (a < b)  return -1;
+  return 0;
+}
+
+function clasePredGrupo(pred, res) {
+  if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) return 'pred-exact';
+  if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) return 'pred-winner';
+  return 'pred-miss';
+}
+
+function badgePuntosGrupo(pred, res) {
+  if (pred.local === res.goles_local && pred.visitante === res.goles_visitante) {
+    return `<span class="pts-badge pts-exact">+3 pts ${t('myPool.exactResult')}</span>`;
+  }
+  if (signo(pred.local, pred.visitante) === signo(res.goles_local, res.goles_visitante)) {
+    return `<span class="pts-badge pts-winner">+1 pt ${t('myPool.winnerOk')}</span>`;
+  }
+  return `<span class="pts-badge pts-miss">0 pts ${t('myPool.missed')}</span>`;
+}
+
+function buscarFlag(nombre) {
+  if (!nombre) return '';
+  const eq = EQUIPOS_48.find(e => e.nombre.toLowerCase() === nombre.toLowerCase());
+  return eq ? eq.flag : '';
+}
+
+function formatFechaLimite(campo) {
+  if (!campo) return '—';
+  try {
+    const d = campo.toDate ? campo.toDate() : new Date(campo);
+    return d.toLocaleString(undefined, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+  } catch { return '—'; }
+}
+
+// ── Autocompletado de equipos ──────────────────────────────────
+window._onEspInput = (campo, valor) => {
+  _predEsp[campo] = valor;
+  const lista = document.getElementById(`ac_${campo}`);
+  if (!lista) return;
+  if (valor.length < 2) { lista.classList.add('hidden'); return; }
+
+  const matches = EQUIPOS_48.filter(e =>
+    e.nombre.toLowerCase().includes(valor.toLowerCase())
+  ).slice(0, 6);
+
+  if (!matches.length) { lista.classList.add('hidden'); return; }
+
+  lista.innerHTML = matches.map(e =>
+    `<div class="autocomplete-item" onclick="window._seleccionarEquipo('${campo}','${e.nombre}','${e.flag}')">
+      <span style="font-size:16px;">${e.flag}</span> ${e.nombre}
+    </div>`
+  ).join('');
+  lista.classList.remove('hidden');
+};
+
+window._seleccionarEquipo = (campo, nombre, flag) => {
+  _predEsp[campo] = nombre;
+  const input = document.getElementById(`esp_${campo}`);
+  const lista  = document.getElementById(`ac_${campo}`);
+  const hint   = document.getElementById(`hint_${campo}`);
+  if (input) input.value = nombre;
+  if (lista) lista.classList.add('hidden');
+  if (hint)  { hint.textContent = flag + ' ' + nombre; hint.classList.remove('missing'); }
+};
+
+window._onEspDirecto = (campo, valor) => {
+  _predEsp[campo] = valor;
+  const hint = document.getElementById(`hint_${campo}`);
+  if (hint) {
+    hint.textContent = valor ? '✓ ' + valor : t('specials.missingWarning');
+    hint.classList.toggle('missing', !valor);
+  }
+};
+
+window._guardarEspeciales = () => guardarPrediccionesEspeciales();
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.autocomplete-wrap')) {
+    document.querySelectorAll('.autocomplete-list').forEach(l => l.classList.add('hidden'));
+  }
+});
