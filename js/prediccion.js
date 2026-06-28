@@ -1287,14 +1287,16 @@ function obtenerPartidosFase(fase) {
     const datoAPI  = _bracket[c.id] || {};
     const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
     const esTercero = c.id === 'tp_1';
+    const equipL = datoAPI.equipoLocal     || (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null;
+    const equipV = datoAPI.equipoVisitante || (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null;
     return {
       ...c,
-      fechaUTC:        elimData?.fechaUTC       || null,
+      fechaUTC:        elimData?.fechaUTC || null,
       desbloqueado:    true,
-      equipoLocal:     datoAPI.equipoLocal     || (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null,
-      equipoVisitante: datoAPI.equipoVisitante || (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null,
-      flagLocal:       datoAPI.flagLocal       || '',
-      flagVisitante:   datoAPI.flagVisitante   || '',
+      equipoLocal:     equipL,
+      equipoVisitante: equipV,
+      flagLocal:       datoAPI.flagLocal     || buscarFlag(equipL) || '',
+      flagVisitante:   datoAPI.flagVisitante || buscarFlag(equipV) || '',
     };
   });
 }
