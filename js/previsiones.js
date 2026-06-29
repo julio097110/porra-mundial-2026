@@ -9,7 +9,7 @@
 
 import { db } from './firebase-config.js';
 import {
-  collection, doc, getDoc, getDocs, query, where
+  collection, getDocs
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t } from './i18n.js';
 import { plazoAbierto } from './auth.js';
@@ -22,8 +22,13 @@ let _predicciones  = {};   // { uid: { partidoId: {local,visitante} } }
 let _predEsp       = {};   // { uid: { campeon, subcampeon, mvp, goleador } }
 let _predElim      = {};   // { uid: { partidoId: {local,visitante,ganador} } }
 let _predTerceros  = {};   // { uid: string[] }
-let _bracket       = {};   // config/bracket_eliminatorias
 let _resultados    = {};   // { partidoId: { goles_local, goles_visitante } }
+
+// ── Mejores terceros clasificados (hardcodeados jun 2026) ─────
+const TERCEROS_PASARON = new Set([
+  'Bosnia y Herzegovina', 'Suecia', 'Ecuador', 'Paraguay',
+  'Senegal', 'Argelia', 'RD Congo', 'Ghana'
+]);
 let _plazoAbierto  = true;
 let _plazoElim     = true;
 let _plazoTerceros = true;
@@ -36,12 +41,12 @@ const POR_PAGINA   = 20;
 
 // ── Definición de fases de eliminatorias ─────────────────────
 const FASES_ELIM = [
-  { id: '1/16', label: '1/16',    prefijo: 'r32',   partidos: 16 },
-  { id: '1/8',  label: '1/8',     prefijo: 'r16',   partidos: 8  },
-  { id: '1/4',  label: 'Cuartos', prefijo: 'qf',    partidos: 4  },
-  { id: 'semi', label: 'Semis',   prefijo: 'sf',    partidos: 2  },
-  { id: '3er',  label: '3er/4º',  prefijo: 'tp',    partidos: 1  },
-  { id: 'final',label: 'Final',   prefijo: 'final', partidos: 1  },
+  { id: '1/16', label: '1/16',    prefijo: 'elim16', partidos: 16 },
+  { id: '1/8',  label: '1/8',     prefijo: 'elim8',  partidos: 8  },
+  { id: '1/4',  label: 'Cuartos', prefijo: 'elim4',  partidos: 4  },
+  { id: 'semi', label: 'Semis',   prefijo: 'elim2',  partidos: 2  },
+  { id: '3er',  label: '3er/4º',  prefijo: 'elim34', partidos: 1  },
+  { id: 'final',label: 'Final',   prefijo: 'elimfin',partidos: 1  },
 ];
 
 // ── Punto de entrada ─────────────────────────────────────────
@@ -82,7 +87,6 @@ export async function initPrevisiones(app) {
     // Cargar eliminatorias y terceros de forma independiente (no bloquean si fallan)
     try { await cargarTodasPrediccionesElim();    } catch(e) { console.warn('[previsiones] elim:', e); }
     try { await cargarTodasPrediccionesTerceros();} catch(e) { console.warn('[previsiones] terceros:', e); }
-    try { await cargarBracket();                  } catch(e) { console.warn('[previsiones] bracket:', e); }
 
     renderPrevisiones(contenedor);
 
@@ -380,66 +384,62 @@ function renderVistaEliminatorias(pagina) {
   return html;
 }
 
-// ── Obtener partidos de una fase con equipos del bracket ──────
+// ── Obtener partidos de una fase con equipos reales/placeholders ──
 function obtenerPartidosDeFase(faseId) {
-  // Definición estática de partidos por fase con placeholders
   const definicion = {
     '1/16': [
-      { id:'r32_1',  pL:'2º Grupo A',    pV:'2º Grupo B'         },
-      { id:'r32_2',  pL:'1º Grupo C',    pV:'2º Grupo F'         },
-      { id:'r32_3',  pL:'1º Grupo E',    pV:'Mej. 3º A/B/C/D/F' },
-      { id:'r32_4',  pL:'1º Grupo F',    pV:'2º Grupo C'         },
-      { id:'r32_5',  pL:'2º Grupo E',    pV:'2º Grupo I'         },
-      { id:'r32_6',  pL:'1º Grupo I',    pV:'Mej. 3º C/D/F/G/H' },
-      { id:'r32_7',  pL:'1º Grupo A',    pV:'Mej. 3º C/E/F/H/I' },
-      { id:'r32_8',  pL:'1º Grupo L',    pV:'Mej. 3º E/H/I/J/K' },
-      { id:'r32_9',  pL:'1º Grupo D',    pV:'Mej. 3º B/E/F/I/J' },
-      { id:'r32_10', pL:'1º Grupo G',    pV:'Mej. 3º A/E/H/I/J' },
-      { id:'r32_11', pL:'2º Grupo K',    pV:'2º Grupo L'         },
-      { id:'r32_12', pL:'1º Grupo H',    pV:'2º Grupo J'         },
-      { id:'r32_13', pL:'1º Grupo B',    pV:'Mej. 3º E/F/G/I/J' },
-      { id:'r32_14', pL:'1º Grupo J',    pV:'2º Grupo H'         },
-      { id:'r32_15', pL:'1º Grupo K',    pV:'Mej. 3º D/E/I/J/L' },
-      { id:'r32_16', pL:'2º Grupo D',    pV:'2º Grupo G'         },
+      { id:'elim16_1',  pL:'Sudáfrica',           pV:'Canadá'               },
+      { id:'elim16_2',  pL:'Países Bajos',         pV:'Marruecos'            },
+      { id:'elim16_3',  pL:'Alemania',             pV:'Paraguay'             },
+      { id:'elim16_4',  pL:'Francia',              pV:'Suecia'               },
+      { id:'elim16_5',  pL:'Bélgica',              pV:'Senegal'              },
+      { id:'elim16_6',  pL:'EEUU',                 pV:'Bosnia y Herzegovina' },
+      { id:'elim16_7',  pL:'España',               pV:'Austria'              },
+      { id:'elim16_8',  pL:'Portugal',             pV:'Croacia'              },
+      { id:'elim16_9',  pL:'Brasil',               pV:'Japón'                },
+      { id:'elim16_10', pL:'Costa de Marfil',      pV:'Noruega'              },
+      { id:'elim16_11', pL:'México',               pV:'Ecuador'              },
+      { id:'elim16_12', pL:'Inglaterra',           pV:'RD Congo'             },
+      { id:'elim16_13', pL:'Suiza',                pV:'Argelia'              },
+      { id:'elim16_14', pL:'Colombia',             pV:'Ghana'                },
+      { id:'elim16_15', pL:'Australia',            pV:'Egipto'               },
+      { id:'elim16_16', pL:'Argentina',            pV:'Cabo Verde'           },
     ],
     '1/8': [
-      { id:'r16_1', pL:'Gan. P1',  pV:'Gan. P2'  },
-      { id:'r16_2', pL:'Gan. P3',  pV:'Gan. P4'  },
-      { id:'r16_3', pL:'Gan. P5',  pV:'Gan. P6'  },
-      { id:'r16_4', pL:'Gan. P7',  pV:'Gan. P8'  },
-      { id:'r16_5', pL:'Gan. P9',  pV:'Gan. P10' },
-      { id:'r16_6', pL:'Gan. P11', pV:'Gan. P12' },
-      { id:'r16_7', pL:'Gan. P13', pV:'Gan. P14' },
-      { id:'r16_8', pL:'Gan. P15', pV:'Gan. P16' },
+      { id:'elim8_2',  pL:'Gan. 16_1',  pV:'Gan. 16_2'  },
+      { id:'elim8_1',  pL:'Gan. 16_3',  pV:'Gan. 16_4'  },
+      { id:'elim8_5',  pL:'Gan. 16_8',  pV:'Gan. 16_7'  },
+      { id:'elim8_6',  pL:'Gan. 16_6',  pV:'Gan. 16_5'  },
+      { id:'elim8_3',  pL:'Gan. 16_9',  pV:'Gan. 16_10' },
+      { id:'elim8_4',  pL:'Gan. 16_11', pV:'Gan. 16_12' },
+      { id:'elim8_7',  pL:'Gan. 16_16', pV:'Gan. 16_15' },
+      { id:'elim8_8',  pL:'Gan. 16_13', pV:'Gan. 16_14' },
     ],
     '1/4': [
-      { id:'qf_1', pL:'Gan. 1/8 A', pV:'Gan. 1/8 B' },
-      { id:'qf_2', pL:'Gan. 1/8 C', pV:'Gan. 1/8 D' },
-      { id:'qf_3', pL:'Gan. 1/8 E', pV:'Gan. 1/8 F' },
-      { id:'qf_4', pL:'Gan. 1/8 G', pV:'Gan. 1/8 H' },
+      { id:'elim4_1',  pL:'Gan. 8_1',  pV:'Gan. 8_2'  },
+      { id:'elim4_2',  pL:'Gan. 8_5',  pV:'Gan. 8_6'  },
+      { id:'elim4_3',  pL:'Gan. 8_3',  pV:'Gan. 8_4'  },
+      { id:'elim4_4',  pL:'Gan. 8_7',  pV:'Gan. 8_8'  },
     ],
     'semi': [
-      { id:'sf_1', pL:'Gan. QF1', pV:'Gan. QF2' },
-      { id:'sf_2', pL:'Gan. QF3', pV:'Gan. QF4' },
+      { id:'elim2_1',  pL:'Gan. QF1',   pV:'Gan. QF2'  },
+      { id:'elim2_2',  pL:'Gan. QF3',   pV:'Gan. QF4'  },
     ],
     '3er': [
-      { id:'tp_1', pL:'Perd. Semi 1', pV:'Perd. Semi 2' },
+      { id:'elim34',   pL:'Perd. SF1',  pV:'Perd. SF2' },
     ],
     'final': [
-      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2' },
+      { id:'elimfin',  pL:'Gan. SF1',   pV:'Gan. SF2'  },
     ],
   };
 
-  return (definicion[faseId] || []).map(c => {
-    const b = _bracket[c.id] || {};
-    return {
-      id:                  c.id,
-      equipoLocal:         b.equipoLocal      || null,
-      equipoVisitante:     b.equipoVisitante  || null,
-      placeholderLocal:    c.pL,
-      placeholderVisitante:c.pV,
-    };
-  });
+  return (definicion[faseId] || []).map(c => ({
+    id:                   c.id,
+    equipoLocal:          c.pL,
+    equipoVisitante:      c.pV,
+    placeholderLocal:     c.pL,
+    placeholderVisitante: c.pV,
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -467,18 +467,9 @@ function renderVistaTerceros(pagina) {
     return p.local === nombre ? (p.flagLocal || '') : (p.flagVisitante || '');
   };
 
-  // ── Extraer los 8 terceros clasificados del bracket ───────
-  // Se guardan como equipoVisitante en los partidos r32 con terceros
-  const IDS_TERCEROS = ['r32_2','r32_5','r32_7','r32_8','r32_9','r32_10','r32_13','r32_15'];
-  const tercerosPasaron = new Set(); // nombres de equipos que pasaron como mejor tercero
-  let hayTercerosBracket = false;
-  IDS_TERCEROS.forEach(id => {
-    const eq = _bracket[id]?.equipoVisitante;
-    if (eq) {
-      tercerosPasaron.add(eq);
-      hayTercerosBracket = true;
-    }
-  });
+  // ── Terceros clasificados (hardcodeados jun 2026) ─────────
+  const tercerosPasaron = TERCEROS_PASARON;
+  const hayTercerosBracket = true;
 
   // ── Columnas: los 12 grupos fijos A–L ─────────────────────
   const gruposOrdenados = ['A','B','C','D','E','F','G','H','I','J','K','L'];
@@ -632,7 +623,7 @@ async function cargarResultados() {
 }
 
 async function cargarTodasPrediccionesElim() {
-  const snap = await getDocs(collection(db, 'predicciones_elim'));
+  const snap = await getDocs(collection(db, 'pred_ko'));
   snap.forEach(d => {
     const data = d.data();
     if (!data.uid || !data.partido_id) return;
@@ -654,10 +645,6 @@ async function cargarTodasPrediccionesTerceros() {
   });
 }
 
-async function cargarBracket() {
-  const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
-  if (snap.exists()) _bracket = snap.data();
-}
 
 // ══════════════════════════════════════════════════════════════
 //  HELPERS
