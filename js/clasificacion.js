@@ -122,7 +122,7 @@ async function cargarPartidosJugados() {
   try {
     const [snapGrupos, snapElim] = await Promise.all([
       getDocs(collection(db, 'resultados')),
-      getDocs(collection(db, 'resultados_elim'))
+      getDocs(collection(db, 'res_ko'))
     ]);
 
     let jugados = 0;
