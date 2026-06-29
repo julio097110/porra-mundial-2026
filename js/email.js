@@ -19,6 +19,7 @@ import {
   query, where, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { PARTIDOS_GRUPOS, getPartidosPorGrupo, GRUPOS } from '../data/partidos.js';
+import { PARTIDOS_ELIM_R32 } from '../data/partidos_elim.js';
 
 // ── Configuración EmailJS ─────────────────────────────────────
 // ⚠️ SUSTITUYE estos valores con los tuyos de EmailJS
@@ -222,24 +223,53 @@ function generarResumenPredicciones(predicciones, tipo, usuario) {
 
   else if (tipo === 'eliminatorias') {
     lineas.push(`\nBRACKET DE ELIMINATORIAS`);
+
+    // Mapa de equipos para R32 (hardcodeado desde PARTIDOS_ELIM_R32)
+    const equiposR32 = {};
+    PARTIDOS_ELIM_R32.forEach(p => {
+      equiposR32[p.id] = { local: p.local, visitante: p.visitante };
+    });
+
+    // Placeholders para rondas posteriores al R32
+    const placeholders = {
+      'elim8_2':  { local: 'Gan. 16_1',  visitante: 'Gan. 16_2'  },
+      'elim8_1':  { local: 'Gan. 16_3',  visitante: 'Gan. 16_4'  },
+      'elim8_5':  { local: 'Gan. 16_8',  visitante: 'Gan. 16_7'  },
+      'elim8_6':  { local: 'Gan. 16_6',  visitante: 'Gan. 16_5'  },
+      'elim8_3':  { local: 'Gan. 16_9',  visitante: 'Gan. 16_10' },
+      'elim8_4':  { local: 'Gan. 16_11', visitante: 'Gan. 16_12' },
+      'elim8_7':  { local: 'Gan. 16_16', visitante: 'Gan. 16_15' },
+      'elim8_8':  { local: 'Gan. 16_13', visitante: 'Gan. 16_14' },
+      'elim4_1':  { local: 'Gan. 8_1',   visitante: 'Gan. 8_2'   },
+      'elim4_2':  { local: 'Gan. 8_5',   visitante: 'Gan. 8_6'   },
+      'elim4_3':  { local: 'Gan. 8_3',   visitante: 'Gan. 8_4'   },
+      'elim4_4':  { local: 'Gan. 8_7',   visitante: 'Gan. 8_8'   },
+      'elim2_1':  { local: 'Gan. QF1',   visitante: 'Gan. QF2'   },
+      'elim2_2':  { local: 'Gan. QF3',   visitante: 'Gan. QF4'   },
+      'elim34':   { local: 'Perd. SF1',  visitante: 'Perd. SF2'  },
+      'elimfin':  { local: 'Gan. SF1',   visitante: 'Gan. SF2'   },
+    };
+
     const fases = [
-      { label: '1/16 de final', prefijo: 'r32' },
-      { label: '1/8 de final',  prefijo: 'r16' },
-      { label: 'Cuartos',       prefijo: 'qf'  },
-      { label: 'Semifinales',   prefijo: 'sf'  },
-      { label: '3er y 4º puesto', prefijo: 'tp' },
-      { label: 'Final',         prefijo: 'final'}
+      { label: '1/16 DE FINAL',    ids: ['elim16_1','elim16_2','elim16_3','elim16_4','elim16_5','elim16_6','elim16_7','elim16_8','elim16_9','elim16_10','elim16_11','elim16_12','elim16_13','elim16_14','elim16_15','elim16_16'] },
+      { label: '1/8 DE FINAL',     ids: ['elim8_2','elim8_1','elim8_5','elim8_6','elim8_3','elim8_4','elim8_7','elim8_8'] },
+      { label: 'CUARTOS DE FINAL', ids: ['elim4_1','elim4_2','elim4_3','elim4_4'] },
+      { label: 'SEMIFINALES',      ids: ['elim2_1','elim2_2'] },
+      { label: '3ER Y 4º PUESTO',  ids: ['elim34'] },
+      { label: 'FINAL',            ids: ['elimfin'] },
     ];
+
     fases.forEach(fase => {
-      const partsFase = Object.entries(predicciones)
-        .filter(([id]) => id.startsWith(fase.prefijo));
+      const partsFase = fase.ids
+        .map(id => [id, predicciones[id]])
+        .filter(([, pred]) => pred != null);
       if (!partsFase.length) return;
       lineas.push(`\n${fase.label}`);
       partsFase.forEach(([id, pred]) => {
-        const local    = pred.local     ?? '?';
-        const visitante= pred.visitante ?? '?';
-        const ganador  = pred.ganador   ? ` → Pasa: ${pred.ganador}` : '';
-        lineas.push(`  Partido ${id}: ${local} — ${visitante}${ganador}`);
+        const equipos  = equiposR32[id] || placeholders[id] || { local: '?', visitante: '?' };
+        const marcador = `${pred.local ?? '?'}\u2014${pred.visitante ?? '?'}`;
+        const ganador  = pred.ganador ? ` \u2192 Pasa: ${pred.ganador}` : '';
+        lineas.push(`  ${equipos.local} vs ${equipos.visitante}: ${marcador}${ganador}`);
       });
     });
   }
