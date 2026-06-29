@@ -15,7 +15,7 @@ import {
   PARTIDOS_GRUPOS, GRUPOS, EQUIPOS_48,
   getPartidosPorGrupo
 } from '../data/partidos.js';
-import { PARTIDOS_ELIM } from '../data/partidos_elim.js';
+import { PARTIDOS_ELIM_R32, MAPA_DEPENDENCIAS } from '../data/partidos_elim.js';
 
 // ── Estado del módulo ─────────────────────────────────────────
 let _app         = null;
@@ -27,7 +27,6 @@ let _predElim    = {};
 let _predEsp     = {};
 let _predTerceros = [];   // array de hasta 8 nombres de equipos seleccionados
 let _resultados  = {};
-let _bracket     = {};
 let _plazoGrupos = true;
 let _plazoElim   = true;
 let _plazoTerceros = true;
@@ -54,7 +53,6 @@ export async function initMiPorra(app) {
       cargarPrediccionesEspeciales(),
       cargarPrediccionesTerceros(),
       cargarResultados(),
-      cargarBracket(),
       cargarTotalGlobal()
     ]);
 
@@ -128,7 +126,7 @@ function renderMiPorra(contenedor) {
 // ── Renderiza el contenido de la sub-pestaña activa ───────────
 function renderTabContent() {
   const contenedor = document.getElementById('prediccionTabContent');
-  if (_subTab === 'grupos')         renderGrupos(contenedor);
+  if (_subTab === 'grupos')             renderGrupos(contenedor);
   else if (_subTab === 'eliminatorias') renderEliminatorias(contenedor);
   else if (_subTab === 'especiales')    renderEspecialesTab(contenedor);
   else                                  renderTerceros(contenedor);
@@ -494,7 +492,7 @@ function obtenerEquiposGrupo(grupo) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  MEJORES TERCEROS — nueva 4ª sub-pestaña
+//  MEJORES TERCEROS — 4ª sub-pestaña
 // ══════════════════════════════════════════════════════════════
 
 function renderTerceros(contenedor) {
@@ -688,7 +686,7 @@ function renderTerceros(contenedor) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  PREDICCIONES ESPECIALES — sub-pestaña independiente
+//  PREDICCIONES ESPECIALES
 // ══════════════════════════════════════════════════════════════
 
 function renderEspecialesTab(contenedor) {
@@ -820,7 +818,7 @@ function renderEspecialesTab(contenedor) {
     </div>`;
 }
 
-// ── Confirmar borrado de predicciones ─────────────────────────
+// ── Confirmar borrado ─────────────────────────────────────────
 function confirmarBorrado(tipo) {
   const labels = {
     grupos:        'predicciones de grupos',
@@ -848,7 +846,7 @@ window._confirmarBorradoFinal = async (tipo) => {
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
       _predGrupos = {};
     } else if (tipo === 'eliminatorias') {
-      const q = query(collection(db, 'predicciones_elim'), where('uid', '==', _app.uid));
+      const q = query(collection(db, 'pred_ko'), where('uid', '==', _app.uid));
       const snap = await getDocs(q);
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
       _predElim = {};
@@ -1009,65 +1007,72 @@ function renderBracketSVG(cerrado) {
 function renderBracketPartidos(cerrado) {
   let html = '';
 
+  // ── Etiquetas de columnas ──────────────────────────────────
   const colsL = [
-    { label: '1/16',      x: 0   },
-    { label: '1/8',       x: 145 },
-    { label: 'Cuartos',   x: 290 },
-    { label: 'Semis',     x: 435 },
+    { label: '1/16',    x: 0   },
+    { label: '1/8',     x: 145 },
+    { label: 'Cuartos', x: 290 },
+    { label: 'Semis',   x: 435 },
   ];
   colsL.forEach(c => {
     html += `<div class="bracket-col-label" style="left:${c.x}px;top:6px;width:130px;">${c.label}</div>`;
   });
   html += `<div class="bracket-col-label" style="left:580px;top:6px;width:140px;text-align:center;">🏆 Final</div>`;
   const colsR = [
-    { label: 'Semis',     x: 735  },
-    { label: 'Cuartos',   x: 880  },
-    { label: '1/8',       x: 1025 },
-    { label: '1/16',      x: 1170 },
+    { label: 'Semis',   x: 735  },
+    { label: 'Cuartos', x: 880  },
+    { label: '1/8',     x: 1025 },
+    { label: '1/16',    x: 1170 },
   ];
   colsR.forEach(c => {
     html += `<div class="bracket-col-label" style="left:${c.x}px;top:6px;width:130px;">${c.label}</div>`;
   });
   html += `<div class="bracket-col-label" style="left:580px;top:530px;width:140px;text-align:center;color:var(--tm);">🥉 3er puesto</div>`;
 
-  const r32L = obtenerPartidos16();
+  // ── R32 izquierda ──────────────────────────────────────────
+  // Visual: 1-4 arriba (slots 0-3), 8-5 abajo (slots 4-7 invertidos)
+  const r32Todos = obtenerPartidos16();
   const posR32L = [
-    { id:'r32_3',  top:24  }, { id:'r32_6',  top:134 },
-    { id:'r32_1',  top:244 }, { id:'r32_4',  top:354 },
-    { id:'r32_11', top:464 }, { id:'r32_12', top:574 },
-    { id:'r32_9',  top:684 }, { id:'r32_10', top:794 },
+    { id: 'elim16_1', top: 24  }, { id: 'elim16_2', top: 134 },
+    { id: 'elim16_3', top: 244 }, { id: 'elim16_4', top: 354 },
+    { id: 'elim16_8', top: 464 }, { id: 'elim16_7', top: 574 },
+    { id: 'elim16_6', top: 684 }, { id: 'elim16_5', top: 794 },
   ];
   posR32L.forEach(({ id, top }) => {
-    const p = r32L.find(x => x.id === id);
+    const p = r32Todos.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 0, top, cerrado, '1/16');
   });
 
+  // ── R16 izquierda ──────────────────────────────────────────
   const partidos8 = obtenerPartidosFase('1/8');
   const posR16L = [
-    { id:'r16_1', top:79  },
-    { id:'r16_2', top:299 },
-    { id:'r16_5', top:519 },
-    { id:'r16_6', top:739 },
+    { id: 'elim8_2', top: 79  },
+    { id: 'elim8_1', top: 299 },
+    { id: 'elim8_5', top: 519 },
+    { id: 'elim8_6', top: 739 },
   ];
   posR16L.forEach(({ id, top }) => {
     const p = partidos8.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 145, top, cerrado, '1/8');
   });
 
+  // ── QF izquierda ───────────────────────────────────────────
   const partidosCuartos = obtenerPartidosFase('1/4');
   const posQFL = [
-    { id:'qf_1', top:189 },
-    { id:'qf_2', top:629 },
+    { id: 'elim4_1', top: 189 },
+    { id: 'elim4_2', top: 629 },
   ];
   posQFL.forEach(({ id, top }) => {
     const p = partidosCuartos.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 290, top, cerrado, '1/4');
   });
 
+  // ── Semis ──────────────────────────────────────────────────
   const partidosSemis = obtenerPartidosFase('semi');
-  const sf1 = partidosSemis.find(x => x.id === 'sf_1');
+  const sf1 = partidosSemis.find(x => x.id === 'elim2_1');
   if (sf1) html += renderBracketMatch(sf1, 435, 409, cerrado, 'semi');
 
+  // ── Final ──────────────────────────────────────────────────
   const final = obtenerPartidosFase('final')[0];
   if (final) {
     html += renderBracketMatch({ ...final, esFinal: true }, 580, 409, cerrado, 'final');
@@ -1085,40 +1090,46 @@ function renderBracketPartidos(cerrado) {
       </div>`;
   }
 
+  // ── 3er puesto ─────────────────────────────────────────────
   const tercero = obtenerPartidosFase('3er')[0];
   if (tercero) html += renderBracketMatch(tercero, 580, 548, cerrado, '3er');
 
-  const sf2 = partidosSemis.find(x => x.id === 'sf_2');
+  // ── Semis derecha ──────────────────────────────────────────
+  const sf2 = partidosSemis.find(x => x.id === 'elim2_2');
   if (sf2) html += renderBracketMatch(sf2, 735, 409, cerrado, 'semi');
 
+  // ── QF derecha ─────────────────────────────────────────────
   const posQFR = [
-    { id:'qf_3', top:189 },
-    { id:'qf_4', top:629 },
+    { id: 'elim4_3', top: 189 },
+    { id: 'elim4_4', top: 629 },
   ];
   posQFR.forEach(({ id, top }) => {
     const p = partidosCuartos.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 880, top, cerrado, '1/4');
   });
 
+  // ── R16 derecha ────────────────────────────────────────────
   const posR16R = [
-    { id:'r16_3', top:79  },
-    { id:'r16_4', top:299 },
-    { id:'r16_7', top:519 },
-    { id:'r16_8', top:739 },
+    { id: 'elim8_3', top: 79  },
+    { id: 'elim8_4', top: 299 },
+    { id: 'elim8_7', top: 519 },
+    { id: 'elim8_8', top: 739 },
   ];
   posR16R.forEach(({ id, top }) => {
     const p = partidos8.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 1025, top, cerrado, '1/8');
   });
 
+  // ── R32 derecha ────────────────────────────────────────────
+  // Visual: 9-12 arriba (slots 0-3), 16-13 abajo (slots 4-7 invertidos)
   const posR32R = [
-    { id:'r32_2',  top:24  }, { id:'r32_5',  top:134 },
-    { id:'r32_7',  top:244 }, { id:'r32_8',  top:354 },
-    { id:'r32_14', top:464 }, { id:'r32_16', top:574 },
-    { id:'r32_13', top:684 }, { id:'r32_15', top:794 },
+    { id: 'elim16_9',  top: 24  }, { id: 'elim16_10', top: 134 },
+    { id: 'elim16_11', top: 244 }, { id: 'elim16_12', top: 354 },
+    { id: 'elim16_16', top: 464 }, { id: 'elim16_15', top: 574 },
+    { id: 'elim16_14', top: 684 }, { id: 'elim16_13', top: 794 },
   ];
   posR32R.forEach(({ id, top }) => {
-    const p = r32L.find(x => x.id === id);
+    const p = r32Todos.find(x => x.id === id);
     if (p) html += renderBracketMatch(p, 1170, top, cerrado, '1/16');
   });
 
@@ -1126,13 +1137,13 @@ function renderBracketPartidos(cerrado) {
 }
 
 function renderBracketMatch(p, left, top, cerrado, fase) {
-  const pred   = _predElim[p.id] || {};
+  const pred    = _predElim[p.id] || {};
   const anchura = fase === 'final' || fase === '3er' ? 140 : 130;
-  const eqL    = p.equipoLocal    || `<span class="bm-placeholder">${p.placeholderLocal    || '?'}</span>`;
-  const eqV    = p.equipoVisitante|| `<span class="bm-placeholder">${p.placeholderVisitante|| '?'}</span>`;
-  const flagL  = p.flagLocal    || '';
-  const flagV  = p.flagVisitante|| '';
-  const ganador= pred.ganador   || null;
+  const eqL     = p.equipoLocal     || `<span class="bm-placeholder">${p.placeholderLocal    || '?'}</span>`;
+  const eqV     = p.equipoVisitante || `<span class="bm-placeholder">${p.placeholderVisitante|| '?'}</span>`;
+  const flagL   = p.flagLocal    || '';
+  const flagV   = p.flagVisitante|| '';
+  const ganador = pred.ganador   || null;
   const esEmpate = (pred.local !== undefined && pred.visitante !== undefined &&
     parseInt(pred.local) === parseInt(pred.visitante) &&
     !isNaN(parseInt(pred.local)));
@@ -1180,86 +1191,59 @@ function renderBracketMatch(p, left, top, cerrado, fase) {
   return html;
 }
 
+// ── Obtener partidos R32 (hardcodeados) ───────────────────────
 function obtenerPartidos16() {
-  const cruces = [
-    { id:'r32_1',  pL:'2º Grupo A',   pV:'2º Grupo B',        fecha:'28 jun', ciudad:'Los Ángeles'    },
-    { id:'r32_2',  pL:'1º Grupo C',   pV:'2º Grupo F',        fecha:'29 jun', ciudad:'Houston'        },
-    { id:'r32_3',  pL:'1º Grupo E',   pV:'Mej. 3º A/B/C/D/F',fecha:'29 jun', ciudad:'Foxborough'     },
-    { id:'r32_4',  pL:'1º Grupo F',   pV:'2º Grupo C',        fecha:'29 jun', ciudad:'Monterrey'      },
-    { id:'r32_5',  pL:'2º Grupo E',   pV:'2º Grupo I',        fecha:'30 jun', ciudad:'Arlington'      },
-    { id:'r32_6',  pL:'1º Grupo I',   pV:'Mej. 3º C/D/F/G/H',fecha:'30 jun', ciudad:'East Rutherford'},
-    { id:'r32_7',  pL:'1º Grupo A',   pV:'Mej. 3º C/E/F/H/I',fecha:'30 jun', ciudad:'Ciudad de México'},
-    { id:'r32_8',  pL:'1º Grupo L',   pV:'Mej. 3º E/H/I/J/K',fecha:'1 jul',  ciudad:'Atlanta'        },
-    { id:'r32_9',  pL:'1º Grupo D',   pV:'Mej. 3º B/E/F/I/J',fecha:'2 jul',  ciudad:'San Francisco'  },
-    { id:'r32_10', pL:'1º Grupo G',   pV:'Mej. 3º A/E/H/I/J',fecha:'2 jul',  ciudad:'Seattle'        },
-    { id:'r32_11', pL:'2º Grupo K',   pV:'2º Grupo L',        fecha:'3 jul',  ciudad:'Toronto'        },
-    { id:'r32_12', pL:'1º Grupo H',   pV:'2º Grupo J',        fecha:'3 jul',  ciudad:'Los Ángeles'    },
-    { id:'r32_13', pL:'1º Grupo B',   pV:'Mej. 3º E/F/G/I/J',fecha:'4 jul',  ciudad:'Vancouver'      },
-    { id:'r32_14', pL:'1º Grupo J',   pV:'2º Grupo H',        fecha:'4 jul',  ciudad:'Kansas City'    },
-    { id:'r32_15', pL:'1º Grupo K',   pV:'Mej. 3º D/E/I/J/L',fecha:'5 jul',  ciudad:'Miami'          },
-    { id:'r32_16', pL:'2º Grupo D',   pV:'2º Grupo G',        fecha:'5 jul',  ciudad:'Dallas'         },
-  ];
-
-  return cruces.map(c => {
-    const datoAPI  = _bracket[c.id] || {};
-    const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
-    return {
-      id:               c.id,
-      equipoLocal:      datoAPI.equipoLocal      || null,
-      equipoVisitante:  datoAPI.equipoVisitante  || null,
-      flagLocal:        datoAPI.flagLocal        || '',
-      flagVisitante:    datoAPI.flagVisitante    || '',
-      placeholderLocal:    c.pL,
-      placeholderVisitante:c.pV,
-      fechaUTC:  elimData?.fechaUTC || null,
-      fecha:            datoAPI.fecha            || c.fecha,
-      ciudad:           datoAPI.ciudad           || c.ciudad,
-      desbloqueado:     true
-    };
-  });
+  return PARTIDOS_ELIM_R32.map(p => ({
+    id:                   p.id,
+    equipoLocal:          p.local,
+    equipoVisitante:      p.visitante,
+    flagLocal:            buscarFlag(p.local),
+    flagVisitante:        buscarFlag(p.visitante),
+    placeholderLocal:     p.local,
+    placeholderVisitante: p.visitante,
+    fechaUTC:             p.fechaUTC,
+    ciudad:               p.ciudad,
+    desbloqueado:         true
+  }));
 }
 
+// ── Obtener partidos de fases posteriores (R16 en adelante) ───
 function obtenerPartidosFase(fase) {
   const fases = {
-    '1/8':   [
-      { id:'r16_1', pL:'Gan. P1',  pV:'Gan. P2',  fecha:'5 jul',  ciudad:'Chicago'       },
-      { id:'r16_2', pL:'Gan. P3',  pV:'Gan. P4',  fecha:'6 jul',  ciudad:'Phoenix'       },
-      { id:'r16_3', pL:'Gan. P5',  pV:'Gan. P6',  fecha:'6 jul',  ciudad:'Denver'        },
-      { id:'r16_4', pL:'Gan. P7',  pV:'Gan. P8',  fecha:'7 jul',  ciudad:'Kansas City'   },
-      { id:'r16_5', pL:'Gan. P9',  pV:'Gan. P10', fecha:'7 jul',  ciudad:'San Francisco' },
-      { id:'r16_6', pL:'Gan. P11', pV:'Gan. P12', fecha:'8 jul',  ciudad:'Seattle'       },
-      { id:'r16_7', pL:'Gan. P13', pV:'Gan. P14', fecha:'8 jul',  ciudad:'Toronto'       },
-      { id:'r16_8', pL:'Gan. P15', pV:'Gan. P16', fecha:'9 jul',  ciudad:'Miami'         },
+    '1/8': [
+      { id: 'elim8_2',  pL: 'Gan. 16_1',  pV: 'Gan. 16_2',  fechaUTC: '2026-07-04T17:00:00Z', ciudad: 'Los Ángeles'      },
+      { id: 'elim8_1',  pL: 'Gan. 16_3',  pV: 'Gan. 16_4',  fechaUTC: '2026-07-04T23:00:00Z', ciudad: 'Houston'          },
+      { id: 'elim8_5',  pL: 'Gan. 16_8',  pV: 'Gan. 16_7',  fechaUTC: '2026-07-06T19:00:00Z', ciudad: 'Arlington'        },
+      { id: 'elim8_6',  pL: 'Gan. 16_6',  pV: 'Gan. 16_5',  fechaUTC: '2026-07-07T00:00:00Z', ciudad: 'Seattle'          },
+      { id: 'elim8_3',  pL: 'Gan. 16_9',  pV: 'Gan. 16_10', fechaUTC: '2026-07-05T20:00:00Z', ciudad: 'East Rutherford'  },
+      { id: 'elim8_4',  pL: 'Gan. 16_11', pV: 'Gan. 16_12', fechaUTC: '2026-07-06T00:00:00Z', ciudad: 'Ciudad de México' },
+      { id: 'elim8_7',  pL: 'Gan. 16_16', pV: 'Gan. 16_15', fechaUTC: '2026-07-07T16:00:00Z', ciudad: 'Atlanta'          },
+      { id: 'elim8_8',  pL: 'Gan. 16_13', pV: 'Gan. 16_14', fechaUTC: '2026-07-07T20:00:00Z', ciudad: 'Vancouver'        },
     ],
-    '1/4':   [
-      { id:'qf_1',  pL:'Gan. 1/8 A', pV:'Gan. 1/8 B', fecha:'11 jul', ciudad:'Los Ángeles'  },
-      { id:'qf_2',  pL:'Gan. 1/8 C', pV:'Gan. 1/8 D', fecha:'12 jul', ciudad:'Nueva York'   },
-      { id:'qf_3',  pL:'Gan. 1/8 E', pV:'Gan. 1/8 F', fecha:'12 jul', ciudad:'Dallas'       },
-      { id:'qf_4',  pL:'Gan. 1/8 G', pV:'Gan. 1/8 H', fecha:'13 jul', ciudad:'Atlanta'      },
+    '1/4': [
+      { id: 'elim4_1',  pL: 'Gan. 8_1',   pV: 'Gan. 8_2',   fechaUTC: '2026-07-09T20:00:00Z', ciudad: 'Los Ángeles'      },
+      { id: 'elim4_2',  pL: 'Gan. 8_5',   pV: 'Gan. 8_6',   fechaUTC: '2026-07-10T19:00:00Z', ciudad: 'East Rutherford'  },
+      { id: 'elim4_3',  pL: 'Gan. 8_3',   pV: 'Gan. 8_4',   fechaUTC: '2026-07-11T21:00:00Z', ciudad: 'Dallas'           },
+      { id: 'elim4_4',  pL: 'Gan. 8_7',   pV: 'Gan. 8_8',   fechaUTC: '2026-07-12T01:00:00Z', ciudad: 'Kansas City'      },
     ],
-    'semi':  [
-      { id:'sf_1',  pL:'Gan. QF1', pV:'Gan. QF2', fecha:'15 jul', ciudad:'Los Ángeles'   },
-      { id:'sf_2',  pL:'Gan. QF3', pV:'Gan. QF4', fecha:'16 jul', ciudad:'Nueva York'    },
+    'semi': [
+      { id: 'elim2_1',  pL: 'Gan. QF1',   pV: 'Gan. QF2',   fechaUTC: '2026-07-14T19:00:00Z', ciudad: 'Arlington'        },
+      { id: 'elim2_2',  pL: 'Gan. QF3',   pV: 'Gan. QF4',   fechaUTC: '2026-07-15T19:00:00Z', ciudad: 'Atlanta'          },
     ],
-    '3er':   [
-      { id:'tp_1',  pL:'Perd. Semi 1', pV:'Perd. Semi 2', fecha:'18 jul', ciudad:'Miami'   },
+    '3er': [
+      { id: 'elim34',   pL: 'Perd. SF1',  pV: 'Perd. SF2',  fechaUTC: '2026-07-18T21:00:00Z', ciudad: 'Miami Gardens'    },
     ],
     'final': [
-      { id:'final_1', pL:'Gan. Semi 1', pV:'Gan. Semi 2', fecha:'19 jul', ciudad:'Nueva York' },
+      { id: 'elimfin',  pL: 'Gan. SF1',   pV: 'Gan. SF2',   fechaUTC: '2026-07-19T19:00:00Z', ciudad: 'East Rutherford'  },
     ]
   };
 
   return (fases[fase] || []).map(c => {
-    const elimData = PARTIDOS_ELIM.find(p => p.id === c.id);
-    const esTercero = c.id === 'tp_1';
-    // ── FIX: los equipos en R16+ siempre vienen de la propagación del jugador,
-    //         nunca de datoAPI (config/bracket_eliminatorias), que podía tener
-    //         datos obsoletos que sobreescribían el cuadro correcto. ──────────
-    const equipL = (esTercero ? propagarPerdedor('sf_1') : propagarGanador(c.id, 'local')) || null;
-    const equipV = (esTercero ? propagarPerdedor('sf_2') : propagarGanador(c.id, 'vis'))   || null;
+    const esTercero = c.id === 'elim34';
+    const equipL = (esTercero ? propagarPerdedor('elim2_1') : propagarGanador(c.id, 'local')) || null;
+    const equipV = (esTercero ? propagarPerdedor('elim2_2') : propagarGanador(c.id, 'vis'))   || null;
     return {
       ...c,
-      fechaUTC:        elimData?.fechaUTC || null,
       desbloqueado:    true,
       equipoLocal:     equipL,
       equipoVisitante: equipV,
@@ -1269,6 +1253,18 @@ function obtenerPartidosFase(fase) {
   });
 }
 
+// ── Propagar ganador a través del bracket ─────────────────────
+// Usa MAPA_DEPENDENCIAS importado de partidos_elim.js.
+// Nunca modificar esta función sin actualizar el mapa.
+function propagarGanador(partidoId, lado) {
+  const dep = MAPA_DEPENDENCIAS[partidoId];
+  if (!dep) return null;
+  const srcId = dep[lado];
+  const pred  = _predElim[srcId];
+  return pred?.ganador || null;
+}
+
+// ── Propagar perdedor (para 3er puesto) ───────────────────────
 function propagarPerdedor(srcId) {
   const pred = _predElim[srcId];
   if (!pred?.ganador) return null;
@@ -1278,34 +1274,11 @@ function propagarPerdedor(srcId) {
   return pred.ganador === local ? (vis || null) : (local || null);
 }
 
-function propagarGanador(partidoId, lado) {
-  const mapa = {
-    // Cruces oficiales FIFA 2026 (corregido 27-jun-2026)
-    'r16_1':   { local: 'r32_3',  vis: 'r32_6'  }, // M89: W(M74) vs W(M77)
-    'r16_2':   { local: 'r32_1',  vis: 'r32_4'  }, // M90: W(M73) vs W(M75)
-    'r16_3':   { local: 'r32_2',  vis: 'r32_5'  }, // M91: W(M76) vs W(M78)
-    'r16_4':   { local: 'r32_7',  vis: 'r32_8'  }, // M92: W(M79) vs W(M80)
-    'r16_5':   { local: 'r32_11', vis: 'r32_12' }, // M93: W(M83) vs W(M84)
-    'r16_6':   { local: 'r32_9',  vis: 'r32_10' }, // M94: W(M81) vs W(M82)
-    'r16_7':   { local: 'r32_14', vis: 'r32_16' }, // M95: W(M86) vs W(M88)
-    'r16_8':   { local: 'r32_13', vis: 'r32_15' }, // M96: W(M85) vs W(M87)
-    'qf_1':    { local: 'r16_1',  vis: 'r16_2'  }, // M97: W(M89) vs W(M90)
-    'qf_2':    { local: 'r16_5',  vis: 'r16_6'  }, // M98: W(M93) vs W(M94)
-    'qf_3':    { local: 'r16_3',  vis: 'r16_4'  }, // M99: W(M91) vs W(M92)
-    'qf_4':    { local: 'r16_7',  vis: 'r16_8'  }, // M100: W(M95) vs W(M96)
-    'sf_1':    { local: 'qf_1',   vis: 'qf_2'   },
-    'sf_2':    { local: 'qf_3',   vis: 'qf_4'   },
-    'final_1': { local: 'sf_1',   vis: 'sf_2'   },
-    'tp_1':    { local: 'sf_1',   vis: 'sf_2'   },
-  };
-  const dep = mapa[partidoId];
-  if (!dep) return null;
-  const srcId = dep[lado];
-  const pred  = _predElim[srcId];
-  return pred?.ganador || null;
-}
-
 function onElimScoreChange(id) {
+  // Safari/iOS fix: forzar blur antes de leer el valor
+  document.getElementById(`be_${id}_l`)?.blur();
+  document.getElementById(`be_${id}_v`)?.blur();
+
   const l = document.getElementById(`be_${id}_l`)?.value;
   const v = document.getElementById(`be_${id}_v`)?.value;
   if (!_predElim[id]) _predElim[id] = {};
@@ -1398,7 +1371,7 @@ async function guardarPrediccionesElim() {
       const equipoVisitantePred = partido?.equipoVisitante || partido?.placeholderVisitante || null;
 
       batch.push(setDoc(
-        doc(db, 'predicciones_elim', `${_app.uid}_${id}`),
+        doc(db, 'pred_ko', `${_app.uid}_${id}`),
         {
           uid:               _app.uid,
           partido_id:        id,
@@ -1502,6 +1475,7 @@ async function cargarPrediccionesGrupos() {
   const snap = await getDocs(q);
   snap.forEach(d => {
     const data = d.data();
+    if (!data.partido_id) return;
     if (data.partido_id === 'desempates') {
       _predGrupos._desempates = data.desempates || {};
     } else {
@@ -1511,11 +1485,19 @@ async function cargarPrediccionesGrupos() {
 }
 
 async function cargarPrediccionesElim() {
-  const q = query(collection(db, 'predicciones_elim'), where('uid', '==', _app.uid));
+  // Lee de la nueva colección pred_ko (IDs nuevos elim16_*, elim8_*, etc.)
+  // Los documentos viejos en predicciones_elim no se tocan.
+  const q = query(collection(db, 'pred_ko'), where('uid', '==', _app.uid));
   const snap = await getDocs(q);
   snap.forEach(d => {
     const data = d.data();
-    _predElim[data.partido_id] = { local: data.local, visitante: data.visitante, ganador: data.ganador };
+    if (data.partido_id) {
+      _predElim[data.partido_id] = {
+        local:     data.local,
+        visitante: data.visitante,
+        ganador:   data.ganador
+      };
+    }
   });
 }
 
@@ -1527,7 +1509,7 @@ async function cargarPrediccionesEspeciales() {
 async function cargarPrediccionesTerceros() {
   try {
     const snap = await getDoc(doc(db, 'pred_terceros', _app.uid));
-   if (snap.exists()) _predTerceros = snap.data().equipos || [];
+    if (snap.exists()) _predTerceros = snap.data().equipos || [];
   } catch (e) {
     _predTerceros = [];
   }
@@ -1536,11 +1518,6 @@ async function cargarPrediccionesTerceros() {
 async function cargarResultados() {
   const snap = await getDocs(collection(db, 'resultados'));
   snap.forEach(d => { _resultados[d.id] = d.data(); });
-}
-
-async function cargarBracket() {
-  const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
-  if (snap.exists()) _bracket = snap.data();
 }
 
 async function cargarTotalGlobal() {
