@@ -4,38 +4,11 @@
 //  - Jugadores: ven resultados confirmados de eliminatorias
 //  - Admin: confirma resultados reales de eliminatorias
 //
-//  Este archivo es paralelo a resultados.js (que gestiona fase
-//  de grupos). Se invoca desde resultados.js cuando el sub-toggle
-//  Grupos/Eliminatorias está en "Eliminatorias".
-//
-//  Colección Firestore: resultados_elim
-//  Documento por partido (id = id del partido en PARTIDOS_ELIM):
-//  {
-//    partido_id:            'r32_1',
-//    ronda:                 'r32',
-//    equipo_local:          'Brasil',
-//    equipo_visitante:      'Japón',
-//    goles_local:           2,
-//    goles_visitante:       2,
-//    hay_prorroga_penales:  true,
-//    equipo_que_pasa:       'Brasil',
-//    confirmado:            true,
-//    confirmado_por:        uid,
-//    confirmado_en:         serverTimestamp()
-//  }
-//
-//  NOTA SOBRE PUNTOS (Paso 3 — pendiente):
-//  recalcularPuntosElim() es por ahora un stub. El cálculo de
-//  puntos de eliminatorias (reglas distintas a grupos) se
-//  diseñará e implementará en una sesión posterior.
-//
-//  NOTA SOBRE BORRAR/EDITAR (decisión tomada con Julio):
-//  Si se borra o edita un resultado de una ronda anterior que
-//  ya tiene rondas posteriores confirmadas dependiendo de él,
-//  NO se bloquea ni se hace borrado en cascada. Se permite la
-//  acción mostrando un aviso explícito de que puede dejar
-//  resultados posteriores inconsistentes, y es responsabilidad
-//  del admin revisarlos manualmente.
+//  NUEVO ESQUEMA (jun 2026):
+//  · Colección resultados: res_ko  (antes: resultados_elim — no tocar)
+//  · Colección predicciones: pred_ko (antes: predicciones_elim)
+//  · IDs nuevos: elim16_*, elim8_*, elim4_*, elim2_*, elimfin, elim34
+//  · Equipos R32 hardcodeados en PARTIDOS_ELIM_R32 — no se leen de Firebase
 // ============================================================
 
 import { db } from './firebase-config.js';
@@ -45,23 +18,23 @@ import {
   query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
-import { PARTIDOS_ELIM, getPartidoElimPorId, getPartidosElimPorRonda } from '../data/partidos_elim.js';
+import { PARTIDOS_ELIM_R32, PARTIDOS_ELIM, MAPA_DEPENDENCIAS, getPartidoElimPorId } from '../data/partidos_elim.js';
 import { abrirModalPartido } from './informe-modal.js';
 
 // ── Estado ────────────────────────────────────────────────────
-let _app             = null;
-let _resultadosElim  = {};   // { partidoId: {...documento resultados_elim} }
-let _bracketOficial  = {};   // { partidoId: {equipoLocal, equipoVisitante, flagLocal, flagVisitante, confirmado} } — config/bracket_eliminatorias
-let _unsubscribe     = null;
+let _app            = null;
+let _resultadosElim = {};   // { partidoId: {...documento res_ko} }
+let _unsubscribe    = null;
 
 // Orden de rondas para renderizado agrupado
 const ORDEN_RONDAS = ['r32', 'r16', 'qf', 'semi', '3er', 'final'];
 
-// Mapeo entre el id técnico de ronda (16 partidos / 32 equipos, etc.)
-// y la clave i18n correspondiente. IMPORTANTE: 'r32' son 16 partidos
-// (32 equipos) = "1/16 de final"; 'r16' son 8 partidos (16 equipos)
-// = "1/8 de final". Los ids técnicos heredan el nombre de "equipos
-// que arrancan la ronda", no el número de partidos — no confundir.
+// Helper: partidos de una ronda concreta (definido localmente para no
+// necesitar exportarlo desde partidos_elim.js)
+function getPartidosElimPorRonda(ronda) {
+  return PARTIDOS_ELIM.filter(p => p.ronda === ronda);
+}
+
 function nombreRonda(ronda) {
   const claves = {
     r32:   'knockouts.round16',
@@ -74,40 +47,14 @@ function nombreRonda(ronda) {
   return t(claves[ronda]) || ronda;
 }
 
-// ── Mapa de dependencias entre rondas ─────────────────────────
-// (idéntico al usado en prediccion.js para propagarGanador,
-// pero aquí se aplica sobre resultados reales confirmados,
-// no sobre predicciones de jugadores)
-const MAPA_DEPENDENCIAS = {
-  'r16_1':   { local: 'r32_1',  vis: 'r32_2'  },
-  'r16_2':   { local: 'r32_3',  vis: 'r32_4'  },
-  'r16_3':   { local: 'r32_5',  vis: 'r32_6'  },
-  'r16_4':   { local: 'r32_7',  vis: 'r32_8'  },
-  'r16_5':   { local: 'r32_9',  vis: 'r32_10' },
-  'r16_6':   { local: 'r32_11', vis: 'r32_12' },
-  'r16_7':   { local: 'r32_13', vis: 'r32_14' },
-  'r16_8':   { local: 'r32_15', vis: 'r32_16' },
-  'qf_1':    { local: 'r16_1',  vis: 'r16_2'  },
-  'qf_2':    { local: 'r16_3',  vis: 'r16_4'  },
-  'qf_3':    { local: 'r16_5',  vis: 'r16_6'  },
-  'qf_4':    { local: 'r16_7',  vis: 'r16_8'  },
-  'sf_1':    { local: 'qf_1',   vis: 'qf_2'   },
-  'sf_2':    { local: 'qf_3',   vis: 'qf_4'   },
-  'final_1': { local: 'sf_1',   vis: 'sf_2'   },
-  'tp_1':    { local: 'sf_1',   vis: 'sf_2'   },  // caso especial: perdedores, ver propagarPerdedorOficial
-};
-
 // ── Punto de entrada ─────────────────────────────────────────
-// Invocado por resultados.js cuando el sub-toggle está en "Eliminatorias"
 export async function initResultadosElim(app, contenedor) {
   _app = app;
   contenedor.innerHTML = `<div class="loading-inline"><div class="spinner-sm"></div><span>${t('common.loading')}</span></div>`;
 
   try {
     await cargarResultadosElimFirestore();
-    await cargarBracketOficial();
 
-    // Registrar handler de desglose una sola vez al iniciar el módulo
     window._verDesglosePartido = (id, esElim) => abrirModalPartido(id, esElim);
 
     if (_app.esAdmin) {
@@ -116,16 +63,8 @@ export async function initResultadosElim(app, contenedor) {
       renderJugadorElim(contenedor);
     }
 
-    // Nota: el refresco de idioma para esta sub-vista lo controla
-    // resultados.js (window._refreshTextos), que vuelve a invocar
-    // initResultadosElim() completo cuando la sub-pestaña activa es
-    // "eliminatorias". No se registra aquí un _refreshTextos propio
-    // para evitar dos funciones de refresco compitiendo por el mismo
-    // contrato global.
-
-    // Escuchar cambios en tiempo real
     if (_unsubscribe) _unsubscribe();
-    _unsubscribe = onSnapshot(collection(db, 'resultados_elim'), (snap) => {
+    _unsubscribe = onSnapshot(collection(db, 'res_ko'), (snap) => {
       snap.forEach(d => { _resultadosElim[d.id] = d.data(); });
       const c = document.getElementById('resultadosTabContent');
       if (c) {
@@ -140,7 +79,6 @@ export async function initResultadosElim(app, contenedor) {
   }
 }
 
-// Permite a resultados.js limpiar el listener al cambiar de sub-toggle
 export function detenerResultadosElim() {
   if (_unsubscribe) {
     _unsubscribe();
@@ -153,27 +91,25 @@ export function detenerResultadosElim() {
 // ══════════════════════════════════════════════════════════════
 
 // Devuelve { local, visitante, flagLocal, flagVisitante, listos }
-// para cualquier partido de eliminatorias, sea de r32 (viene del
-// bracket de clasificados ya calculado en resultados.js) o de
-// rondas posteriores (se propaga desde resultados_elim confirmados).
+// R32: siempre listos (hardcoded). R16+: propaga desde res_ko.
 function obtenerEquiposPartidoElim(partidoId) {
   const partido = getPartidoElimPorId(partidoId);
   const ronda   = partido?.ronda;
 
   if (ronda === 'r32') {
-    const b = _bracketOficial[partidoId] || {};
+    const p = PARTIDOS_ELIM_R32.find(x => x.id === partidoId);
     return {
-      local:          b.equipoLocal      || null,
-      visitante:      b.equipoVisitante  || null,
-      flagLocal:      b.flagLocal        || '',
-      flagVisitante:  b.flagVisitante    || '',
-      listos:         !!(b.equipoLocal && b.equipoVisitante)
+      local:         p?.local     || null,
+      visitante:     p?.visitante || null,
+      flagLocal:     '',
+      flagVisitante: '',
+      listos:        !!(p?.local && p?.visitante)
     };
   }
 
-  if (partidoId === 'tp_1') {
-    const local     = propagarPerdedorOficial('sf_1');
-    const visitante = propagarPerdedorOficial('sf_2');
+  if (partidoId === 'elim34') {
+    const local     = propagarPerdedorOficial('elim2_1');
+    const visitante = propagarPerdedorOficial('elim2_2');
     return {
       local, visitante,
       flagLocal: '', flagVisitante: '',
@@ -190,7 +126,7 @@ function obtenerEquiposPartidoElim(partidoId) {
   };
 }
 
-// Propaga el equipo que pasó de ronda desde el partido fuente confirmado
+// Usa MAPA_DEPENDENCIAS importado — idéntico al de prediccion.js
 function propagarGanadorOficial(partidoId, lado) {
   const dep = MAPA_DEPENDENCIAS[partidoId];
   if (!dep) return null;
@@ -200,7 +136,6 @@ function propagarGanadorOficial(partidoId, lado) {
   return res.equipo_que_pasa || null;
 }
 
-// Propaga el perdedor de una semifinal (para el partido de 3er/4º puesto)
 function propagarPerdedorOficial(srcId) {
   const res = _resultadosElim[srcId];
   if (!res?.confirmado) return null;
@@ -231,13 +166,11 @@ function renderJugadorElim(contenedor) {
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
 }
 
-// ── Tarjeta resultado (jugador, solo lectura) ─────────────────
 function renderTarjetaResultadoElim(p) {
-  const res         = _resultadosElim[p.id];
-  const confirmado  = res?.confirmado;
-  const equipos     = obtenerEquiposPartidoElim(p.id);
+  const res        = _resultadosElim[p.id];
+  const confirmado = res?.confirmado;
+  const equipos    = obtenerEquiposPartidoElim(p.id);
 
-  // Caso: equipos aún no determinados (ronda anterior no confirmada)
   if (!equipos.listos && !confirmado) {
     return `
       <div class="match-card no-result">
@@ -324,21 +257,18 @@ function renderAdminElim(contenedor) {
   contenedor.innerHTML = html;
   if (window.parseTwemoji) window.parseTwemoji(contenedor);
 
-  // Handlers
-  window._confirmarResElim  = (id) => confirmarResultadoElim(id);
-  window._editarResElim     = (id) => editarResultadoElim(id);
-  window._borrarResElim     = (id) => confirmarBorrarResultadoElim(id);
+  window._confirmarResElim     = (id) => confirmarResultadoElim(id);
+  window._editarResElim        = (id) => editarResultadoElim(id);
+  window._borrarResElim        = (id) => confirmarBorrarResultadoElim(id);
   window._onMarcadorElimChange = (id) => onMarcadorElimChange(id);
   window._seleccionarPasaElim  = (id, lado) => seleccionarPasaElim(id, lado);
 }
 
-// ── Tarjeta resultado (admin) ──────────────────────────────────
 function renderTarjetaAdminElim(p) {
   const res        = _resultadosElim[p.id];
   const confirmado = res?.confirmado;
   const equipos    = obtenerEquiposPartidoElim(p.id);
 
-  // Caso: equipos aún no determinados — sin inputs, sin botón
   if (!equipos.listos && !confirmado) {
     return `
       <div class="match-card no-result">
@@ -366,7 +296,6 @@ function renderTarjetaAdminElim(p) {
   const nombreLocal     = equipos.local     || res?.equipo_local     || '?';
   const nombreVisitante = equipos.visitante || res?.equipo_visitante || '?';
 
-  // Caso: ya confirmado
   if (confirmado) {
     return `
       <div class="match-card confirmed">
@@ -409,9 +338,6 @@ function renderTarjetaAdminElim(p) {
     `;
   }
 
-  // Caso: equipos listos, pendiente de confirmar
-  const valL = '';
-  const valV = '';
   const empatado = res?.goles_local !== undefined && res?.goles_local === res?.goles_visitante;
 
   return `
@@ -429,11 +355,11 @@ function renderTarjetaAdminElim(p) {
           <span class="score-label">${t('scores.result')}</span>
           <div class="score-inputs">
             <input class="score-input" type="number" min="0" max="20"
-              id="rese_${p.id}_l" value="${valL}"
+              id="rese_${p.id}_l" value=""
               onchange="window._onMarcadorElimChange('${p.id}')">
             <span class="score-sep">—</span>
             <input class="score-input" type="number" min="0" max="20"
-              id="rese_${p.id}_v" value="${valV}"
+              id="rese_${p.id}_v" value=""
               onchange="window._onMarcadorElimChange('${p.id}')">
           </div>
         </div>
@@ -460,17 +386,14 @@ function renderTarjetaAdminElim(p) {
   `;
 }
 
-// Marca como seleccionado uno de los dos botones de tiebreak (¿quién pasa?)
 function seleccionarPasaElim(partidoId, lado) {
   const btnLocal     = document.getElementById(`rese_${partidoId}_pasa_local`);
   const btnVisitante = document.getElementById(`rese_${partidoId}_pasa_visitante`);
   if (!btnLocal || !btnVisitante) return;
-
   btnLocal.classList.toggle('selected', lado === 'local');
   btnVisitante.classList.toggle('selected', lado === 'visitante');
 }
 
-// Muestra/oculta el bloque "¿quién pasa?" según si el marcador introducido está empatado
 function onMarcadorElimChange(partidoId) {
   const inputL = document.getElementById(`rese_${partidoId}_l`);
   const inputV = document.getElementById(`rese_${partidoId}_v`);
@@ -480,7 +403,6 @@ function onMarcadorElimChange(partidoId) {
   const gl = parseInt(inputL.value);
   const gv = parseInt(inputV.value);
   const empatado = !isNaN(gl) && !isNaN(gv) && gl === gv;
-
   caja.style.display = empatado ? 'block' : 'none';
 }
 
@@ -489,6 +411,10 @@ function onMarcadorElimChange(partidoId) {
 // ══════════════════════════════════════════════════════════════
 
 async function confirmarResultadoElim(partidoId) {
+  // Safari/iOS fix
+  document.getElementById(`rese_${partidoId}_l`)?.blur();
+  document.getElementById(`rese_${partidoId}_v`)?.blur();
+
   const inputL = document.getElementById(`rese_${partidoId}_l`);
   const inputV = document.getElementById(`rese_${partidoId}_v`);
   if (!inputL || !inputV) return;
@@ -533,42 +459,36 @@ async function confirmarResultadoElim(partidoId) {
 
     const partido = getPartidoElimPorId(partidoId);
 
-    await setDoc(doc(db, 'resultados_elim', partidoId), {
-      partido_id:            partidoId,
-      ronda:                 partido?.ronda || '',
-      equipo_local:          equipos.local,
-      equipo_visitante:      equipos.visitante,
-      goles_local:           gl,
-      goles_visitante:       gv,
-      hay_prorroga_penales:  hayEmpate,
-      equipo_que_pasa:       equipoQuePasa,
-      confirmado:            true,
-      confirmado_por:        _app.uid,
-      confirmado_en:         serverTimestamp()
+    await setDoc(doc(db, 'res_ko', partidoId), {
+      partido_id:           partidoId,
+      ronda:                partido?.ronda || '',
+      equipo_local:         equipos.local,
+      equipo_visitante:     equipos.visitante,
+      goles_local:          gl,
+      goles_visitante:      gv,
+      hay_prorroga_penales: hayEmpate,
+      equipo_que_pasa:      equipoQuePasa,
+      confirmado:           true,
+      confirmado_por:       _app.uid,
+      confirmado_en:        serverTimestamp()
     });
 
     _resultadosElim[partidoId] = {
-      partido_id: partidoId,
-      ronda: partido?.ronda || '',
-      equipo_local: equipos.local,
-      equipo_visitante: equipos.visitante,
-      goles_local: gl,
-      goles_visitante: gv,
+      partido_id:           partidoId,
+      ronda:                partido?.ronda || '',
+      equipo_local:         equipos.local,
+      equipo_visitante:     equipos.visitante,
+      goles_local:          gl,
+      goles_visitante:      gv,
       hay_prorroga_penales: hayEmpate,
-      equipo_que_pasa: equipoQuePasa,
-      confirmado: true
+      equipo_que_pasa:      equipoQuePasa,
+      confirmado:           true
     };
 
-    // Recalcular puntos de eliminatorias para este partido
     recalcularPuntosElim(partidoId);
 
-    // Si es la final, además recalcular los puntos especiales de
-    // campeón/subcampeón de TODOS los jugadores. Esto es independiente
-    // de los puntos de eliminatorias del propio partido: un jugador
-    // puede fallar el marcador de la final (puntos de eliminatorias)
-    // y aun así acertar quién sería el campeón en sus predicciones
-    // especiales, o viceversa.
-    if (partidoId === 'final_1') {
+    // Si es la final, recalcular también puntos especiales de campeón/subcampeón
+    if (partidoId === 'elimfin') {
       const subcampeonReal = equipoQuePasa === equipos.local
         ? equipos.visitante
         : equipos.local;
@@ -617,7 +537,6 @@ function editarResultadoElim(partidoId) {
   if (c) renderAdminElim(c);
 }
 
-// ── Confirmar borrado de resultado de eliminatorias ────────────
 function confirmarBorrarResultadoElim(partidoId) {
   const res    = _resultadosElim[partidoId];
   const titulo = res
@@ -625,7 +544,7 @@ function confirmarBorrarResultadoElim(partidoId) {
     : partidoId;
 
   const dependientes = encontrarDependientesConfirmados(partidoId);
-  const avisoDependientes = dependientes.length
+  const avisoDep = dependientes.length
     ? `<p style="font-size:12px; color:var(--r); margin-top:8px;">
          ⚠️ Rondas posteriores ya confirmadas dependen de este resultado: <strong>${dependientes.join(', ')}</strong>.
          Borrar este partido puede dejarlos inconsistentes — revísalos manualmente después.
@@ -638,7 +557,7 @@ function confirmarBorrarResultadoElim(partidoId) {
      <p style="font-size:12px; color:var(--r); margin-top:8px;">
        ⚠️ Esto también eliminará los puntos calculados de todos los jugadores para este partido.
      </p>
-     ${avisoDependientes}`,
+     ${avisoDep}`,
     `<button class="btn btn-secondary" onclick="window.appCerrarModal()">Cancelar</button>
      <button class="btn btn-danger" onclick="window._ejecutarBorradoResElim('${partidoId}')">
        🗑️ Sí, borrar resultado y puntos
@@ -651,21 +570,14 @@ window._ejecutarBorradoResElim = async (partidoId) => {
     window.appCerrarModal();
     window.mostrarToast('🗑️ Borrando...');
 
-    // 1. Borrar el documento de resultado
-    await deleteDoc(doc(db, 'resultados_elim', partidoId));
+    await deleteDoc(doc(db, 'res_ko', partidoId));
 
-    // 2. Borrar todos los documentos de puntos de este partido (Paso 3 — colección 'puntos' compartida con grupos)
-    const puntosQ    = query(
-      collection(db, 'puntos'),
-      where('partido_id', '==', partidoId)
-    );
+    const puntosQ    = query(collection(db, 'puntos'), where('partido_id', '==', partidoId));
     const puntosSnap = await getDocs(puntosQ);
     await Promise.all(puntosSnap.docs.map(d => deleteDoc(d.ref)));
 
-    // 2b. Si es la final, también borrar los puntos especiales de
-    // campeón/subcampeón de todos los jugadores — ya no hay un campeón
-    // real confirmado del que derivarlos hasta que se vuelva a confirmar.
-    if (partidoId === 'final_1') {
+    // Si era la final, borrar también puntos especiales de campeón/subcampeón
+    if (partidoId === 'elimfin') {
       const [campeonSnap, subcampeonSnap] = await Promise.all([
         getDocs(query(collection(db, 'puntos'), where('partido_id', '==', 'especial_campeon'))),
         getDocs(query(collection(db, 'puntos'), where('partido_id', '==', 'especial_subcampeon')))
@@ -676,10 +588,7 @@ window._ejecutarBorradoResElim = async (partidoId) => {
       ]);
     }
 
-    // 3. Actualizar localmente
     delete _resultadosElim[partidoId];
-
-    // 4. Recalcular totales tras los borrados anteriores
     await recalcularTotalesElim();
 
     window.mostrarToast('✅ Resultado y puntos borrados');
@@ -692,9 +601,6 @@ window._ejecutarBorradoResElim = async (partidoId) => {
   }
 };
 
-// Devuelve los ids de partidos posteriores ya confirmados que dependen
-// (directa o indirectamente) del partido dado — solo para mostrar el aviso,
-// no se usa para bloquear ni borrar en cascada.
 function encontrarDependientesConfirmados(partidoId) {
   const dependientesDirectos = Object.entries(MAPA_DEPENDENCIAS)
     .filter(([, dep]) => dep.local === partidoId || dep.vis === partidoId)
@@ -704,11 +610,8 @@ function encontrarDependientesConfirmados(partidoId) {
   dependientesDirectos.forEach(id => {
     if (_resultadosElim[id]?.confirmado) {
       confirmados.push(id);
-      // recursión: dependientes de este también dependen indirectamente del original
       confirmados.push(...encontrarDependientesConfirmados(id));
     } else {
-      // aunque no esté confirmado, sus propios dependientes podrían estarlo
-      // (caso raro/inconsistente, pero se revisa por seguridad)
       confirmados.push(...encontrarDependientesConfirmados(id));
     }
   });
@@ -717,30 +620,7 @@ function encontrarDependientesConfirmados(partidoId) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  CÁLCULO DE PUNTOS (trigger al confirmar resultado)
-//
-//  Reglas (decididas y confirmadas con Julio):
-//    - Si el jugador no acertó qué dos equipos jugaban este cruce
-//      (comparando por nombre, ambas posiciones), el partido no
-//      puntúa: 0 pts automáticos, sin más comprobaciones.
-//    - Marcador exacto en 90', sin empate                = 4 pts
-//    - Marcador exacto en 90', con empate, y además
-//      acierta qué equipo pasa de ronda                  = 4 pts
-//    - Marcador exacto en 90', con empate, pero falla
-//      quién pasa (ya acertó el empate en sí)            = 1 pt
-//    - Empate real, predijo empate (no el marcador
-//      exacto) + acierta quién pasa                      = 2 pts
-//    - Empate real, predijo empate (no el marcador
-//      exacto) pero falla quién pasa                     = 1 pt
-//    - Sin empate real, acierta el ganador (marcador
-//      no exacto)                                        = 2 pts
-//    - Cualquier otro caso                                = 0 pts
-//
-//  Almacenamiento: se reutiliza la colección 'puntos' ya existente
-//  para grupos (mismo id de documento `${uid}_${partidoId}`),
-//  añadiendo tipo: 'eliminatoria' para distinguirlo. recalcularTotales()
-//  ya suma todos los documentos de 'puntos' sin filtrar por tipo,
-//  así que no necesita ningún cambio.
+//  CÁLCULO DE PUNTOS
 // ══════════════════════════════════════════════════════════════
 
 async function recalcularPuntosElim(partidoId) {
@@ -748,28 +628,19 @@ async function recalcularPuntosElim(partidoId) {
     const resultadoReal = _resultadosElim[partidoId];
     if (!resultadoReal?.confirmado) return;
 
-    const q = query(
-      collection(db, 'predicciones_elim'),
-      where('partido_id', '==', partidoId)
-    );
+    const q    = query(collection(db, 'pred_ko'), where('partido_id', '==', partidoId));
     const snap = await getDocs(q);
 
     const batch = [];
     snap.forEach(d => {
-      const pred = d.data();
-      const uid  = pred.uid;
+      const pred   = d.data();
+      const uid    = pred.uid;
       const puntos = calcularPuntosPartidoElim(pred, resultadoReal);
 
       batch.push(
         setDoc(
           doc(db, 'puntos', `${uid}_${partidoId}`),
-          {
-            uid,
-            partido_id: partidoId,
-            puntos,
-            tipo:       'eliminatoria',
-            timestamp:  serverTimestamp()
-          },
+          { uid, partido_id: partidoId, puntos, tipo: 'eliminatoria', timestamp: serverTimestamp() },
           { merge: true }
         )
       );
@@ -782,14 +653,8 @@ async function recalcularPuntosElim(partidoId) {
   }
 }
 
-// Comprueba si el jugador predijo correctamente qué dos equipos
-// jugaban este cruce (por nombre, ambas posiciones deben coincidir
-// exactamente con el resultado real confirmado). Se compara contra
-// equipo_local/equipo_visitante guardados en predicciones_elim (el
-// nombre o placeholder que el jugador tenía en pantalla al guardar),
-// NO contra pred.local/pred.visitante, que son los goles predichos.
 export function equiposCoincidenElim(pred, resultadoReal) {
-  return pred.equipo_local === resultadoReal.equipo_local &&
+  return pred.equipo_local     === resultadoReal.equipo_local &&
          pred.equipo_visitante === resultadoReal.equipo_visitante;
 }
 
@@ -800,26 +665,22 @@ export function calcularPuntosPartidoElim(pred, resultadoReal) {
   const pv = parseInt(pred.visitante);
   if (isNaN(pl) || isNaN(pv)) return 0;
 
-  const gl = resultadoReal.goles_local;
-  const gv = resultadoReal.goles_visitante;
+  const gl         = resultadoReal.goles_local;
+  const gv         = resultadoReal.goles_visitante;
   const hayEmpate90 = gl === gv;
 
-  // Marcador exacto en 90'
   if (pl === gl && pv === gv) {
     if (!hayEmpate90) return 4;
     return pred.ganador === resultadoReal.equipo_que_pasa ? 4 : 1;
   }
 
-  // No coincide el marcador exacto
   if (hayEmpate90) {
-    // ¿Predijo al menos que habría empate en 90'?
     if (pl === pv) {
       return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 1;
     }
     return 0;
   }
 
-  // Sin empate real: ¿acertó el ganador por signo del marcador?
   const signoPred = Math.sign(pl - pv);
   const signoReal = Math.sign(gl - gv);
   if (signoPred === signoReal) return 2;
@@ -827,16 +688,7 @@ export function calcularPuntosPartidoElim(pred, resultadoReal) {
   return 0;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  PUNTOS ESPECIALES DE CAMPEÓN / SUBCAMPEÓN (al confirmar la final)
-//  Independientes de los puntos de eliminatorias del partido final_1:
-//  comparan el campeón/subcampeón REAL (deducido del resultado de la
-//  final) contra lo que cada jugador escribió en sus predicciones
-//  especiales (pred_especiales.campeon / .subcampeon), usando el
-//  campo corregido por el admin si existe — mismo patrón que ya usa
-//  admin.js para MVP/goleador oficiales.
-// ══════════════════════════════════════════════════════════════
-
+// ── Puntos especiales de campeón/subcampeón (al confirmar la final) ──
 async function recalcularPuntosEspecialesFinal(campeonReal, subcampeonReal) {
   try {
     const norm = str =>
@@ -877,9 +729,6 @@ async function recalcularPuntosEspecialesFinal(campeonReal, subcampeonReal) {
   }
 }
 
-// Mismo cálculo de totales que grupos (recalcularTotales en resultados.js),
-// replicado aquí porque ese archivo no exporta su versión y este módulo
-// no debe importar funciones internas no exportadas de resultados.js.
 async function recalcularTotalesElim() {
   try {
     const puntosSnap = await getDocs(collection(db, 'puntos'));
@@ -910,13 +759,6 @@ async function recalcularTotalesElim() {
 // ══════════════════════════════════════════════════════════════
 
 async function cargarResultadosElimFirestore() {
-  const snap = await getDocs(collection(db, 'resultados_elim'));
+  const snap = await getDocs(collection(db, 'res_ko'));
   snap.forEach(d => { _resultadosElim[d.id] = d.data(); });
-}
-
-async function cargarBracketOficial() {
-  const snap = await getDoc(doc(db, 'config', 'bracket_eliminatorias'));
-  if (snap.exists()) {
-    _bracketOficial = snap.data();
-  }
 }
