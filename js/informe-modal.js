@@ -330,8 +330,8 @@ export async function abrirModalJugador(uid, nombre) {
     ] = await Promise.all([
       getDocs(collection(db, 'resultados')),
       getDocs(query(collection(db, 'predicciones'), where('uid', '==', uid))),
-      getDocs(collection(db, 'resultados_elim')),
-      getDocs(query(collection(db, 'predicciones_elim'), where('uid', '==', uid))),
+      getDocs(collection(db, 'res_ko')),
+      getDocs(query(collection(db, 'pred_ko'), where('uid', '==', uid))),
       getDoc(doc(db, 'pred_especiales', uid)),
       getDoc(doc(db, 'config', 'general')),
       getDoc(doc(db, 'pred_terceros', uid))
@@ -454,7 +454,7 @@ function calcEspeciales(esp, config, resElim) {
   const items = [];
   const mvpOfi = config.mvp_oficial    || '';
   const golOfi = config.goleador_oficial || '';
-  const finalRes = resElim['final_1'];
+  const finalRes = resElim['elimfin'];
   let campeon = '', subcampeon = '';
   if (finalRes?.confirmado) {
     campeon    = finalRes.equipo_que_pasa || '';
@@ -770,8 +770,8 @@ async function _modalPartidoGrupo(partidoId) {
 // ── Modal partido de eliminatorias ────────────────────────────
 async function _modalPartidoElim(partidoId) {
   const [resSnap, predSnap, usuSnap] = await Promise.all([
-    getDoc(doc(db, 'resultados_elim', partidoId)),
-    getDocs(query(collection(db, 'predicciones_elim'), where('partido_id', '==', partidoId))),
+    getDoc(doc(db, 'res_ko', partidoId)),
+    getDocs(query(collection(db, 'pred_ko'), where('partido_id', '==', partidoId))),
     getDocs(collection(db, 'usuarios'))
   ]);
 
