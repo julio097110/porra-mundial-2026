@@ -88,6 +88,8 @@ function renderAdmin(contenedor) {
         ${menuItem('bloqueados',   '🔒', 'Bloqueados')}
         ${menuItem('integridad',   '🔍', t('admin.integrity.title'))}
         ${menuItem('limpiarElim',  '🗑️', 'Limpiar Elim.')}
+        ${menuItem('rezagados',    '⏳', 'Rezagados',
+          _usuarios.filter(u => u.rezagado_elim && u.rezagado_elim.activo).length || 0)}
         ${menuItem('mimimi',       '😭', 'Mimimi')}
       </div>
 
@@ -135,6 +137,7 @@ function renderSeccion() {
     case 'bloqueados':    return renderBloqueados();
     case 'integridad':    return renderIntegridad();
     case 'limpiarElim':   return renderLimpiarElim();
+    case 'rezagados':     return renderRezagados();
     case 'mimimi':        return renderMimimi();
     default:              return renderResumen();
   }
@@ -236,7 +239,7 @@ function renderJugadores() {
             <tbody>
               ${pagina.map(u => `
                 <tr>
-                  <td><span class="player-name">${u.nombre_visible || '—'}</span></td>
+                  <td><span class="player-name">${u.nombre_visible || '—'}</span>${(u.rezagado_elim && u.rezagado_elim.activo) ? ' <span title="Rezagado en eliminatorias" style="font-size:13px;">⏳</span>' : ''}</td>
                   <td style="color:var(--tm);">${u.username || '—'}</td>
                   <td><span class="lang-tag">${(u.idioma || 'es').toUpperCase()}</span></td>
                   <td>${badgesPred(u)}</td>
@@ -1179,8 +1182,50 @@ function renderMimimi() {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  VERIFICACIÓN DE INTEGRIDAD
+//  REZAGADOS EN ELIMINATORIAS
 // ══════════════════════════════════════════════════════════════
+
+function renderRezagados() {
+  return `
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--gd); letter-spacing:1px; margin-bottom:4px;">
+        ⏳ Rezagados en eliminatorias
+      </div>
+      <div style="font-size:12px; color:var(--tm); margin-bottom:16px;">
+        Marca a los jugadores que necesitan más tiempo. Mientras estén marcados, podrán seguir rellenando
+        sus predicciones de eliminatorias pero no verán las del resto, y el resto verá el motivo en lugar
+        de sus predicciones. Desmárcalos cuando confirmen que ya las tienen completas.
+      </div>
+      <div class="card">
+        <div class="card-body" style="display:flex; flex-direction:column; gap:10px;">
+          ${_usuarios.filter(u => u.rol !== 'admin').map(u => {
+            const rezagado = (u.rezagado_elim && u.rezagado_elim.activo) || false;
+            const motivo   = (u.rezagado_elim && u.rezagado_elim.motivo) || '';
+            return `
+              <div style="display:flex; flex-direction:column; gap:8px;
+                padding:10px 12px; border-radius:var(--radius);
+                border:1px solid ${rezagado ? 'var(--gd)' : 'var(--gp)'};
+                background:${rezagado ? '#fff9ec' : '#fff'};
+                transition: all .15s;">
+                <label style="display:flex; align-items:center; gap:12px; cursor:pointer;">
+                  <input type="checkbox" ${rezagado ? 'checked' : ''}
+                    onchange="window._adminToggleRezagado('${u.uid}', this.checked)"
+                    style="accent-color:var(--gd); width:18px; height:18px; flex-shrink:0;">
+                  <span style="font-size:13px; font-weight:600; color:var(--gd); flex:1;">${u.nombre_visible}</span>
+                  ${rezagado ? `<span style="font-size:11px; color:var(--gd); font-style:italic;">⏳ Rezagado</span>` : ''}
+                </label>
+                ${rezagado ? `
+                  <input type="text" id="motivo_${u.uid}" value="${motivo.replace(/"/g, '&quot;')}"
+                    placeholder="Motivo (ej. está de viaje, lo tendrá el jueves)"
+                    onblur="window._adminGuardarMotivoRezagado('${u.uid}', this.value)"
+                    style="font-size:12px; padding:7px 10px; border:1px solid var(--gp); border-radius:var(--radius); width:100%;">
+                ` : ''}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
 
 function recalcularPuntosGrupoJugador(uid, prediccionesPorPartido, resultadosGrupo) {
   const detalle = {};
@@ -1958,6 +2003,37 @@ function registrarHandlers() {
       window.mostrarToast('❌ ' + t('common.error'), 5000);
     }
   };
+
+  // ── Rezagados en eliminatorias ───────────────────────────────
+  window._adminToggleRezagado = async (uid, activo) => {
+    try {
+      const u = _usuarios.find(u => u.uid === uid);
+      const motivoActual = (u && u.rezagado_elim && u.rezagado_elim.motivo) || '';
+      const rezagado_elim = { activo, motivo: motivoActual };
+      await updateDoc(doc(db, 'usuarios', uid), { rezagado_elim });
+      if (u) u.rezagado_elim = rezagado_elim;
+      document.getElementById('adminSeccion').innerHTML = renderSeccion();
+      registrarHandlers();
+      window.mostrarToast(activo ? '⏳ Marcado como rezagado' : '✅ Rezagado desmarcado');
+    } catch (e) {
+      console.error('[toggleRezagado]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
+
+  window._adminGuardarMotivoRezagado = async (uid, motivo) => {
+    try {
+      const u = _usuarios.find(u => u.uid === uid);
+      const activoActual = (u && u.rezagado_elim && u.rezagado_elim.activo) || false;
+      const rezagado_elim = { activo: activoActual, motivo };
+      await updateDoc(doc(db, 'usuarios', uid), { rezagado_elim });
+      if (u) u.rezagado_elim = rezagado_elim;
+      window.mostrarToast('✅ Motivo guardado');
+    } catch (e) {
+      console.error('[guardarMotivoRezagado]', e);
+      window.mostrarToast('❌ ' + t('common.error'), 5000);
+    }
+  };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2022,6 +2098,7 @@ async function cargarUsuarios() {
       rol:            data.rol      || 'jugador',
       pagado:         data.pagado   || false,
       mimimi:         data.mimimi   || false,
+      rezagado_elim:  data.rezagado_elim || { activo: false, motivo: '' },
       sugerencias:    data.sugerencias || 0,
       predGrupos:   { n: nGrupos,   estado: estadoGrupos   },
       predElim:     { n: nElim,     estado: estadoElim     },
