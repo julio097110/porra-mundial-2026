@@ -228,6 +228,7 @@ function renderJugadores() {
                 <th>${t('admin.players.username')}</th>
                 <th>${t('admin.players.lang')}</th>
                 <th>${t('admin.players.predictions')}</th>
+                <th>${t('admin.players.suggestions')}</th>
                 <th>${t('admin.players.payment')}</th>
                 <th>${t('admin.players.actions')}</th>
               </tr>
@@ -239,6 +240,9 @@ function renderJugadores() {
                   <td style="color:var(--tm);">${u.username || '—'}</td>
                   <td><span class="lang-tag">${(u.idioma || 'es').toUpperCase()}</span></td>
                   <td>${badgesPred(u)}</td>
+                  <td style="text-align:center; font-weight:600; color:var(--gd);">
+                    ${u.sugerencias > 0 ? `💡 ${u.sugerencias}` : '—'}
+                  </td>
                   <td>
                     <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
                       <input type="checkbox" ${u.pagado ? 'checked' : ''}
@@ -2018,6 +2022,7 @@ async function cargarUsuarios() {
       rol:            data.rol      || 'jugador',
       pagado:         data.pagado   || false,
       mimimi:         data.mimimi   || false,
+      sugerencias:    data.sugerencias || 0,
       predGrupos:   { n: nGrupos,   estado: estadoGrupos   },
       predElim:     { n: nElim,     estado: estadoElim     },
       predEsp:      { n: nEsp,      estado: estadoEsp      },
