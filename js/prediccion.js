@@ -32,6 +32,7 @@ let _plazoElim   = true;
 let _plazoTerceros = true;
 let _config      = {};
 let _totalGlobal = null;
+let _rezagado    = false;   // true si el admin marcó a este jugador como rezagado en eliminatorias
 
 // ── Punto de entrada ─────────────────────────────────────────
 export async function initMiPorra(app) {
@@ -46,6 +47,14 @@ export async function initMiPorra(app) {
       plazoAbierto('terceros'),
       obtenerConfig()
     ]);
+
+    try {
+      const uSnap = await getDoc(doc(db, 'usuarios', _app.uid));
+      _rezagado = !!(uSnap.exists() && uSnap.data().rezagado_elim && uSnap.data().rezagado_elim.activo);
+    } catch (e) {
+      console.warn('[initMiPorra] rezagado_elim:', e);
+      _rezagado = false;
+    }
 
     await Promise.all([
       cargarPrediccionesGrupos(),
@@ -871,14 +880,16 @@ window._confirmarBorradoFinal = async (tipo) => {
 // ══════════════════════════════════════════════════════════════
 
 function renderEliminatorias(contenedor) {
-  const cerrado  = !_plazoElim;
+  const cerrado  = !_plazoElim && !_rezagado;
   const fechaStr = formatFechaLimite(_config.fecha_limite_eliminatorias);
   const scrollPrevio = document.querySelector('.bracket-scroll')?.scrollLeft || 0;
 
   contenedor.innerHTML = `
     ${cerrado
       ? `<div class="notice locked">🔒 ${t('knockouts.closedNotice')}</div>`
-      : `<div class="notice">🔓 ${t('knockouts.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`
+      : (_rezagado && !_plazoElim
+          ? `<div class="notice" style="background:#fff9ec; border-color:#f0d98c;">⏳ Tienes tiempo extra para completar tus predicciones de eliminatorias. Avisa al administrador cuando las tengas listas.</div>`
+          : `<div class="notice">🔓 ${t('knockouts.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`)
     }
 
     <div class="bracket-legend">
@@ -1364,7 +1375,7 @@ async function guardarPrediccionesGrupos() {
 }
 
 async function guardarPrediccionesElim() {
-  if (!_plazoElim) return;
+  if (!_plazoElim && !_rezagado) return;
   try {
     window.mostrarToast('💾 Guardando...');
 
