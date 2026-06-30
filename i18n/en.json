@@ -93,7 +93,8 @@
     "placeholder2": "Los.",
     "whoAdvances": "Who goes through?",
     "openUntil": "Open until",
-    "closedNotice": "The knockout deadline has passed"
+    "closedNotice": "The knockout deadline has passed",
+    "delayedNotice": "You've been given extra time to complete your knockout predictions. Let Julio know when you're ready."
   },
   "specials": {
     "title": "Special predictions",
@@ -185,6 +186,7 @@
     "title": "See all predictions",
     "searchPlaceholder": "Search player...",
     "lockedNotice": "Visible after the prediction deadline",
+    "delayedNotice": "You can't see other predictions yet because you've been given extra time. Let Julio know when you're ready.",
     "page": "page",
     "of": "of",
     "players": "players",
