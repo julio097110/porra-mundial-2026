@@ -281,11 +281,20 @@ function renderVistaGrupos(pagina) {
 // ══════════════════════════════════════════════════════════════
 
 function renderVistaEliminatorias(pagina) {
-  // Plazo aún abierto → bloqueado
+  // Plazo aún abierto → bloqueado para todos
   if (_plazoElim) {
     return `
       <div class="notice locked" style="margin-top:4px;">
         🔒 Las predicciones de eliminatorias estarán visibles cuando se cierre el plazo.
+      </div>`;
+  }
+
+  // El propio jugador está marcado como rezagado → no ve nada del resto todavía
+  const yo = _usuarios.find(u => u.uid === _app.uid);
+  if (yo && yo.rezagado_elim && yo.rezagado_elim.activo) {
+    return `
+      <div class="notice locked" style="margin-top:4px;">
+        ⏳ Hasta que no confirmes al administrador que tienes todo OK no podrás ver las predicciones del resto.
       </div>`;
   }
 
@@ -322,6 +331,22 @@ function renderVistaEliminatorias(pagina) {
   pagina.forEach(u => {
     const esYo  = u.uid === _app.uid;
     const predU = _predElim[u.uid] || {};
+    const rezagado = u.rezagado_elim && u.rezagado_elim.activo;
+
+    if (rezagado) {
+      const motivo = u.rezagado_elim.motivo || 'Aún no ha confirmado sus predicciones.';
+      html += `
+        <div class="prev-row ${esYo ? 'me' : ''}">
+          <div class="prev-cell-name">
+            ${u.nombre}
+            ${esYo ? `<span class="s-you" style="font-size:9px;">${t('allPredictions.you')}</span>` : ''}
+          </div>
+          <div class="prev-cell" style="grid-column: span ${partidosFase.length}; text-align:left; font-size:11px; color:var(--tm); font-style:italic; padding:8px;">
+            ⏳ Pendiente — ${motivo}
+          </div>
+        </div>`;
+      return;
+    }
 
     html += `
       <div class="prev-row ${esYo ? 'me' : ''}">
@@ -590,7 +615,8 @@ async function cargarUsuarios() {
   const snap = await getDocs(collection(db, 'usuarios'));
   _usuarios = snap.docs.map(d => ({
     uid:    d.id,
-    nombre: d.data().nombre_visible || d.data().username || '—'
+    nombre: d.data().nombre_visible || d.data().username || '—',
+    rezagado_elim: d.data().rezagado_elim || { activo: false, motivo: '' }
   })).sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
