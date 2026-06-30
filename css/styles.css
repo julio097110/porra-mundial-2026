@@ -715,8 +715,10 @@ h1, h2, h3 { line-height: 1.2; }
 .bm-flag { font-size: 13px; flex-shrink: 0; }
 .bm-name { font-size: 10px; font-weight: 600; color: var(--t); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bm-placeholder { font-size: 9px; color: #bbb; font-style: italic; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bm-input { width: 20px; height: 18px; text-align: center; font-size: 10px; font-weight: 700; border-radius: 3px; border: 1px solid #d0dfc0; background: var(--gg); color: var(--gd); flex-shrink: 0; outline: none; }
+.bm-input { width: 28px; height: 22px; text-align: center; font-size: 10px; font-weight: 700; border-radius: 3px; border: 1px solid #d0dfc0; background: var(--gg); color: var(--gd); flex-shrink: 0; outline: none; -moz-appearance: textfield; appearance: textfield; }
 .bm-input:disabled { background: #f0f0f0; color: #ccc; border-color: #e8e8e8; }
+.bm-input::-webkit-outer-spin-button,
+.bm-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .bm-fixed { width: 20px; text-align: center; font-size: 10px; color: #ccc; flex-shrink: 0; }
 .bm-pts  { font-size: 8px; color: #ccc; padding: 2px 7px; background: #fafafa; border-top: 1px solid #f0f0f0; }
 .bm-tiebreak { background: #fffbea; padding: 2px 6px; display: flex; align-items: center; gap: 3px; border-top: 1px solid #f5e8b0; }
