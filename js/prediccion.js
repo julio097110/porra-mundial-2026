@@ -888,7 +888,7 @@ function renderEliminatorias(contenedor) {
     </div>
 
     <div class="bracket-scroll">
-      <div class="bracket-canvas" id="bracketCanvas" style="position:relative; min-width:1300px; height:880px;">
+      <div class="bracket-canvas" id="bracketCanvas" style="position:relative; min-width:1300px; height:1060px;">
         ${renderBracketSVG(cerrado)}
         ${renderBracketPartidos(cerrado)}
       </div>
@@ -916,94 +916,94 @@ function renderEliminatorias(contenedor) {
 
 function renderBracketSVG(cerrado) {
   return `
-    <svg style="position:absolute;top:0;left:0;width:1300px;height:880px;pointer-events:none;overflow:visible;">
+    <svg style="position:absolute;top:0;left:0;width:1300px;height:1060px;pointer-events:none;overflow:visible;">
       <!-- ── IZQUIERDA: R32 → R16 ── -->
       <line class="conn-line" x1="130" y1="62"  x2="137" y2="62"/>
-      <line class="conn-line" x1="130" y1="172" x2="137" y2="172"/>
-      <line class="conn-line" x1="137" y1="62"  x2="137" y2="172"/>
-      <line class="conn-line" x1="137" y1="117" x2="145" y2="117"/>
+      <line class="conn-line" x1="130" y1="192" x2="137" y2="192"/>
+      <line class="conn-line" x1="137" y1="62"  x2="137" y2="192"/>
+      <line class="conn-line" x1="137" y1="127" x2="145" y2="127"/>
 
-      <line class="conn-line" x1="130" y1="282" x2="137" y2="282"/>
-      <line class="conn-line" x1="130" y1="392" x2="137" y2="392"/>
-      <line class="conn-line" x1="137" y1="282" x2="137" y2="392"/>
-      <line class="conn-line" x1="137" y1="337" x2="145" y2="337"/>
+      <line class="conn-line" x1="130" y1="322" x2="137" y2="322"/>
+      <line class="conn-line" x1="130" y1="452" x2="137" y2="452"/>
+      <line class="conn-line" x1="137" y1="322" x2="137" y2="452"/>
+      <line class="conn-line" x1="137" y1="387" x2="145" y2="387"/>
 
-      <line class="conn-line" x1="130" y1="502" x2="137" y2="502"/>
-      <line class="conn-line" x1="130" y1="612" x2="137" y2="612"/>
-      <line class="conn-line" x1="137" y1="502" x2="137" y2="612"/>
-      <line class="conn-line" x1="137" y1="557" x2="145" y2="557"/>
+      <line class="conn-line" x1="130" y1="582" x2="137" y2="582"/>
+      <line class="conn-line" x1="130" y1="712" x2="137" y2="712"/>
+      <line class="conn-line" x1="137" y1="582" x2="137" y2="712"/>
+      <line class="conn-line" x1="137" y1="647" x2="145" y2="647"/>
 
-      <line class="conn-line" x1="130" y1="722" x2="137" y2="722"/>
-      <line class="conn-line" x1="130" y1="832" x2="137" y2="832"/>
-      <line class="conn-line" x1="137" y1="722" x2="137" y2="832"/>
-      <line class="conn-line" x1="137" y1="777" x2="145" y2="777"/>
+      <line class="conn-line" x1="130" y1="842" x2="137" y2="842"/>
+      <line class="conn-line" x1="130" y1="972" x2="137" y2="972"/>
+      <line class="conn-line" x1="137" y1="842" x2="137" y2="972"/>
+      <line class="conn-line" x1="137" y1="907" x2="145" y2="907"/>
 
       <!-- ── IZQUIERDA: R16 → QF ── -->
-      <line class="conn-line" x1="275" y1="117" x2="282" y2="117"/>
-      <line class="conn-line" x1="275" y1="337" x2="282" y2="337"/>
-      <line class="conn-line" x1="282" y1="117" x2="282" y2="337"/>
-      <line class="conn-line" x1="282" y1="227" x2="290" y2="227"/>
+      <line class="conn-line" x1="275" y1="127" x2="282" y2="127"/>
+      <line class="conn-line" x1="275" y1="387" x2="282" y2="387"/>
+      <line class="conn-line" x1="282" y1="127" x2="282" y2="387"/>
+      <line class="conn-line" x1="282" y1="257" x2="290" y2="257"/>
 
-      <line class="conn-line" x1="275" y1="557" x2="282" y2="557"/>
-      <line class="conn-line" x1="275" y1="777" x2="282" y2="777"/>
-      <line class="conn-line" x1="282" y1="557" x2="282" y2="777"/>
-      <line class="conn-line" x1="282" y1="667" x2="290" y2="667"/>
+      <line class="conn-line" x1="275" y1="647" x2="282" y2="647"/>
+      <line class="conn-line" x1="275" y1="907" x2="282" y2="907"/>
+      <line class="conn-line" x1="282" y1="647" x2="282" y2="907"/>
+      <line class="conn-line" x1="282" y1="777" x2="290" y2="777"/>
 
       <!-- ── IZQUIERDA: QF → SF ── -->
-      <line class="conn-line" x1="420" y1="227" x2="427" y2="227"/>
-      <line class="conn-line" x1="420" y1="667" x2="427" y2="667"/>
-      <line class="conn-line" x1="427" y1="227" x2="427" y2="667"/>
-      <line class="conn-line" x1="427" y1="447" x2="435" y2="447"/>
+      <line class="conn-line" x1="420" y1="257" x2="427" y2="257"/>
+      <line class="conn-line" x1="420" y1="777" x2="427" y2="777"/>
+      <line class="conn-line" x1="427" y1="257" x2="427" y2="777"/>
+      <line class="conn-line" x1="427" y1="517" x2="435" y2="517"/>
 
       <!-- ── IZQUIERDA: SF → FINAL ── -->
-      <line class="conn-line" x1="565" y1="447" x2="580" y2="447" stroke-width="2"/>
+      <line class="conn-line" x1="565" y1="517" x2="580" y2="517" stroke-width="2"/>
 
       <!-- ── DERECHA: R32 → R16 ── -->
       <line class="conn-line" x1="1170" y1="62"  x2="1163" y2="62"/>
-      <line class="conn-line" x1="1170" y1="172" x2="1163" y2="172"/>
-      <line class="conn-line" x1="1163" y1="62"  x2="1163" y2="172"/>
-      <line class="conn-line" x1="1163" y1="117" x2="1155" y2="117"/>
+      <line class="conn-line" x1="1170" y1="192" x2="1163" y2="192"/>
+      <line class="conn-line" x1="1163" y1="62"  x2="1163" y2="192"/>
+      <line class="conn-line" x1="1163" y1="127" x2="1155" y2="127"/>
 
-      <line class="conn-line" x1="1170" y1="282" x2="1163" y2="282"/>
-      <line class="conn-line" x1="1170" y1="392" x2="1163" y2="392"/>
-      <line class="conn-line" x1="1163" y1="282" x2="1163" y2="392"/>
-      <line class="conn-line" x1="1163" y1="337" x2="1155" y2="337"/>
+      <line class="conn-line" x1="1170" y1="322" x2="1163" y2="322"/>
+      <line class="conn-line" x1="1170" y1="452" x2="1163" y2="452"/>
+      <line class="conn-line" x1="1163" y1="322" x2="1163" y2="452"/>
+      <line class="conn-line" x1="1163" y1="387" x2="1155" y2="387"/>
 
-      <line class="conn-line" x1="1170" y1="502" x2="1163" y2="502"/>
-      <line class="conn-line" x1="1170" y1="612" x2="1163" y2="612"/>
-      <line class="conn-line" x1="1163" y1="502" x2="1163" y2="612"/>
-      <line class="conn-line" x1="1163" y1="557" x2="1155" y2="557"/>
+      <line class="conn-line" x1="1170" y1="582" x2="1163" y2="582"/>
+      <line class="conn-line" x1="1170" y1="712" x2="1163" y2="712"/>
+      <line class="conn-line" x1="1163" y1="582" x2="1163" y2="712"/>
+      <line class="conn-line" x1="1163" y1="647" x2="1155" y2="647"/>
 
-      <line class="conn-line" x1="1170" y1="722" x2="1163" y2="722"/>
-      <line class="conn-line" x1="1170" y1="832" x2="1163" y2="832"/>
-      <line class="conn-line" x1="1163" y1="722" x2="1163" y2="832"/>
-      <line class="conn-line" x1="1163" y1="777" x2="1155" y2="777"/>
+      <line class="conn-line" x1="1170" y1="842" x2="1163" y2="842"/>
+      <line class="conn-line" x1="1170" y1="972" x2="1163" y2="972"/>
+      <line class="conn-line" x1="1163" y1="842" x2="1163" y2="972"/>
+      <line class="conn-line" x1="1163" y1="907" x2="1155" y2="907"/>
 
       <!-- ── DERECHA: R16 → QF ── -->
-      <line class="conn-line" x1="1025" y1="117" x2="1018" y2="117"/>
-      <line class="conn-line" x1="1025" y1="337" x2="1018" y2="337"/>
-      <line class="conn-line" x1="1018" y1="117" x2="1018" y2="337"/>
-      <line class="conn-line" x1="1018" y1="227" x2="1010" y2="227"/>
+      <line class="conn-line" x1="1025" y1="127" x2="1018" y2="127"/>
+      <line class="conn-line" x1="1025" y1="387" x2="1018" y2="387"/>
+      <line class="conn-line" x1="1018" y1="127" x2="1018" y2="387"/>
+      <line class="conn-line" x1="1018" y1="257" x2="1010" y2="257"/>
 
-      <line class="conn-line" x1="1025" y1="557" x2="1018" y2="557"/>
-      <line class="conn-line" x1="1025" y1="777" x2="1018" y2="777"/>
-      <line class="conn-line" x1="1018" y1="557" x2="1018" y2="777"/>
-      <line class="conn-line" x1="1018" y1="667" x2="1010" y2="667"/>
+      <line class="conn-line" x1="1025" y1="647" x2="1018" y2="647"/>
+      <line class="conn-line" x1="1025" y1="907" x2="1018" y2="907"/>
+      <line class="conn-line" x1="1018" y1="647" x2="1018" y2="907"/>
+      <line class="conn-line" x1="1018" y1="777" x2="1010" y2="777"/>
 
       <!-- ── DERECHA: QF → SF ── -->
-      <line class="conn-line" x1="880" y1="227" x2="873" y2="227"/>
-      <line class="conn-line" x1="880" y1="667" x2="873" y2="667"/>
-      <line class="conn-line" x1="873" y1="227" x2="873" y2="667"/>
-      <line class="conn-line" x1="873" y1="447" x2="865" y2="447"/>
+      <line class="conn-line" x1="880" y1="257" x2="873" y2="257"/>
+      <line class="conn-line" x1="880" y1="777" x2="873" y2="777"/>
+      <line class="conn-line" x1="873" y1="257" x2="873" y2="777"/>
+      <line class="conn-line" x1="873" y1="517" x2="865" y2="517"/>
 
       <!-- ── DERECHA: SF → FINAL ── -->
-      <line class="conn-line" x1="735" y1="447" x2="720" y2="447" stroke-width="2"/>
+      <line class="conn-line" x1="735" y1="517" x2="720" y2="517" stroke-width="2"/>
 
       <!-- ── 3er PUESTO (dashed) ── -->
-      <line class="conn-line" x1="500" y1="484" x2="500" y2="568" stroke-dasharray="4,3" opacity="0.5"/>
-      <line class="conn-line" x1="500" y1="568" x2="580" y2="568" stroke-dasharray="4,3" opacity="0.5"/>
-      <line class="conn-line" x1="800" y1="484" x2="800" y2="568" stroke-dasharray="4,3" opacity="0.5"/>
-      <line class="conn-line" x1="800" y1="568" x2="720" y2="568" stroke-dasharray="4,3" opacity="0.5"/>
+      <line class="conn-line" x1="500" y1="554" x2="500" y2="638" stroke-dasharray="4,3" opacity="0.5"/>
+      <line class="conn-line" x1="500" y1="638" x2="580" y2="638" stroke-dasharray="4,3" opacity="0.5"/>
+      <line class="conn-line" x1="800" y1="554" x2="800" y2="638" stroke-dasharray="4,3" opacity="0.5"/>
+      <line class="conn-line" x1="800" y1="638" x2="720" y2="638" stroke-dasharray="4,3" opacity="0.5"/>
     </svg>
   `;
 }
@@ -1031,16 +1031,16 @@ function renderBracketPartidos(cerrado) {
   colsR.forEach(c => {
     html += `<div class="bracket-col-label" style="left:${c.x}px;top:6px;width:130px;">${c.label}</div>`;
   });
-  html += `<div class="bracket-col-label" style="left:580px;top:530px;width:140px;text-align:center;color:var(--tm);">🥉 3er puesto</div>`;
+  html += `<div class="bracket-col-label" style="left:580px;top:600px;width:140px;text-align:center;color:var(--tm);">🥉 3er puesto</div>`;
 
   // ── R32 izquierda ──────────────────────────────────────────
   // Visual: 1-4 arriba (slots 0-3), 8-5 abajo (slots 4-7 invertidos)
   const r32Todos = obtenerPartidos16();
   const posR32L = [
-    { id: 'elim16_1', top: 24  }, { id: 'elim16_2', top: 134 },
-    { id: 'elim16_3', top: 244 }, { id: 'elim16_4', top: 354 },
-    { id: 'elim16_8', top: 464 }, { id: 'elim16_7', top: 574 },
-    { id: 'elim16_6', top: 684 }, { id: 'elim16_5', top: 794 },
+    { id: 'elim16_1', top: 24  }, { id: 'elim16_2', top: 154 },
+    { id: 'elim16_3', top: 284 }, { id: 'elim16_4', top: 414 },
+    { id: 'elim16_8', top: 544 }, { id: 'elim16_7', top: 674 },
+    { id: 'elim16_6', top: 804 }, { id: 'elim16_5', top: 934 },
   ];
   posR32L.forEach(({ id, top }) => {
     const p = r32Todos.find(x => x.id === id);
@@ -1050,10 +1050,10 @@ function renderBracketPartidos(cerrado) {
   // ── R16 izquierda ──────────────────────────────────────────
   const partidos8 = obtenerPartidosFase('1/8');
   const posR16L = [
-    { id: 'elim8_2', top: 79  },
-    { id: 'elim8_1', top: 299 },
-    { id: 'elim8_5', top: 519 },
-    { id: 'elim8_6', top: 739 },
+    { id: 'elim8_2', top: 89  },
+    { id: 'elim8_1', top: 349 },
+    { id: 'elim8_5', top: 609 },
+    { id: 'elim8_6', top: 869 },
   ];
   posR16L.forEach(({ id, top }) => {
     const p = partidos8.find(x => x.id === id);
@@ -1063,8 +1063,8 @@ function renderBracketPartidos(cerrado) {
   // ── QF izquierda ───────────────────────────────────────────
   const partidosCuartos = obtenerPartidosFase('1/4');
   const posQFL = [
-    { id: 'elim4_1', top: 189 },
-    { id: 'elim4_2', top: 629 },
+    { id: 'elim4_1', top: 219 },
+    { id: 'elim4_2', top: 739 },
   ];
   posQFL.forEach(({ id, top }) => {
     const p = partidosCuartos.find(x => x.id === id);
@@ -1074,20 +1074,20 @@ function renderBracketPartidos(cerrado) {
   // ── Semis ──────────────────────────────────────────────────
   const partidosSemis = obtenerPartidosFase('semi');
   const sf1 = partidosSemis.find(x => x.id === 'elim2_1');
-  if (sf1) html += renderBracketMatch(sf1, 435, 409, cerrado, 'semi');
+  if (sf1) html += renderBracketMatch(sf1, 435, 479, cerrado, 'semi');
 
   // ── Final ──────────────────────────────────────────────────
   const final = obtenerPartidosFase('final')[0];
   if (final) {
-    html += renderBracketMatch({ ...final, esFinal: true }, 580, 409, cerrado, 'final');
+    html += renderBracketMatch({ ...final, esFinal: true }, 580, 479, cerrado, 'final');
     const pred     = _predElim[final.id] || {};
     const campeon  = pred.ganador || '—';
     const coincide = campeon === _predEsp.campeon;
     html += `
-      <div class="champ-badge" style="position:absolute;left:580px;top:${409+80}px;width:140px;">
+      <div class="champ-badge" style="position:absolute;left:580px;top:${479-40}px;width:140px;">
         🥇 ${campeon}
       </div>
-      <div class="champ-sub" style="position:absolute;left:580px;top:${409+98}px;width:140px;font-size:8px;color:#aaa;text-align:center;">
+      <div class="champ-sub" style="position:absolute;left:580px;top:${479-22}px;width:140px;font-size:8px;color:#aaa;text-align:center;">
         ${coincide && campeon !== '—'
           ? '✓ Coincide con tu predicción especial · +6 pts'
           : campeon !== '—' ? 'Diferente a tu predicción especial' : ''}
@@ -1096,16 +1096,16 @@ function renderBracketPartidos(cerrado) {
 
   // ── 3er puesto ─────────────────────────────────────────────
   const tercero = obtenerPartidosFase('3er')[0];
-  if (tercero) html += renderBracketMatch(tercero, 580, 548, cerrado, '3er');
+  if (tercero) html += renderBracketMatch(tercero, 580, 618, cerrado, '3er');
 
   // ── Semis derecha ──────────────────────────────────────────
   const sf2 = partidosSemis.find(x => x.id === 'elim2_2');
-  if (sf2) html += renderBracketMatch(sf2, 735, 409, cerrado, 'semi');
+  if (sf2) html += renderBracketMatch(sf2, 735, 479, cerrado, 'semi');
 
   // ── QF derecha ─────────────────────────────────────────────
   const posQFR = [
-    { id: 'elim4_3', top: 189 },
-    { id: 'elim4_4', top: 629 },
+    { id: 'elim4_3', top: 219 },
+    { id: 'elim4_4', top: 739 },
   ];
   posQFR.forEach(({ id, top }) => {
     const p = partidosCuartos.find(x => x.id === id);
@@ -1114,10 +1114,10 @@ function renderBracketPartidos(cerrado) {
 
   // ── R16 derecha ────────────────────────────────────────────
   const posR16R = [
-    { id: 'elim8_3', top: 79  },
-    { id: 'elim8_4', top: 299 },
-    { id: 'elim8_7', top: 519 },
-    { id: 'elim8_8', top: 739 },
+    { id: 'elim8_3', top: 89  },
+    { id: 'elim8_4', top: 349 },
+    { id: 'elim8_7', top: 609 },
+    { id: 'elim8_8', top: 869 },
   ];
   posR16R.forEach(({ id, top }) => {
     const p = partidos8.find(x => x.id === id);
@@ -1127,10 +1127,10 @@ function renderBracketPartidos(cerrado) {
   // ── R32 derecha ────────────────────────────────────────────
   // Visual: 9-12 arriba (slots 0-3), 16-13 abajo (slots 4-7 invertidos)
   const posR32R = [
-    { id: 'elim16_9',  top: 24  }, { id: 'elim16_10', top: 134 },
-    { id: 'elim16_11', top: 244 }, { id: 'elim16_12', top: 354 },
-    { id: 'elim16_16', top: 464 }, { id: 'elim16_15', top: 574 },
-    { id: 'elim16_14', top: 684 }, { id: 'elim16_13', top: 794 },
+    { id: 'elim16_9',  top: 24  }, { id: 'elim16_10', top: 154 },
+    { id: 'elim16_11', top: 284 }, { id: 'elim16_12', top: 414 },
+    { id: 'elim16_16', top: 544 }, { id: 'elim16_15', top: 674 },
+    { id: 'elim16_14', top: 804 }, { id: 'elim16_13', top: 934 },
   ];
   posR32R.forEach(({ id, top }) => {
     const p = r32Todos.find(x => x.id === id);
