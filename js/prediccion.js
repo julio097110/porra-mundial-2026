@@ -873,6 +873,7 @@ window._confirmarBorradoFinal = async (tipo) => {
 function renderEliminatorias(contenedor) {
   const cerrado  = !_plazoElim;
   const fechaStr = formatFechaLimite(_config.fecha_limite_eliminatorias);
+  const scrollPrevio = document.querySelector('.bracket-scroll')?.scrollLeft || 0;
 
   contenedor.innerHTML = `
     ${cerrado
@@ -908,6 +909,9 @@ function renderEliminatorias(contenedor) {
   window._onElimScore = (id) => onElimScoreChange(id);
   window._onElimTB    = (id, ganador) => onElimTiebreak(id, ganador);
   window._borrarPredicciones = (tipo) => confirmarBorrado(tipo);
+
+  const nuevoScroll = document.querySelector('.bracket-scroll');
+  if (nuevoScroll) nuevoScroll.scrollLeft = scrollPrevio;
 }
 
 function renderBracketSVG(cerrado) {
