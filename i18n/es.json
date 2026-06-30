@@ -93,7 +93,8 @@
     "placeholder2": "Perd.",
     "whoAdvances": "¿Quién pasa?",
     "openUntil": "Abierto hasta el",
-    "closedNotice": "El plazo de eliminatorias está cerrado"
+    "closedNotice": "El plazo de eliminatorias está cerrado",
+    "delayedNotice": "Se te ha concedido más tiempo para completar tus predicciones de eliminatorias. Avisa a Julio cuando estés listo/a."
   },
   "specials": {
     "title": "Predicciones especiales",
@@ -185,6 +186,7 @@
     "title": "Ver todas las predicciones",
     "searchPlaceholder": "Buscar jugador...",
     "lockedNotice": "Visible desde el cierre del plazo de predicciones",
+    "delayedNotice": "Aún no puedes ver otras predicciones porque se te ha concedido más tiempo. Cuando estés listo/a, avisa a Julio.",
     "page": "pág",
     "of": "de",
     "players": "jugadores",
