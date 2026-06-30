@@ -8,6 +8,7 @@
     "scores": "Scores",
     "standings": "Standings",
     "allPredictions": "See all predictions",
+    "suggestions": "Suggestions",
     "adminPanel": "Admin panel",
     "logout": "Log out"
   },
@@ -192,6 +193,13 @@
     "missed": "✗",
     "legend": "✓ green = exact · ✗ red = missed · no colour = pending"
   },
+  "suggestions": {
+    "title": "Suggestions",
+    "subtitle": "Got an idea or a proposal for the pool? Write it here.",
+    "placeholder": "Write your suggestion...",
+    "sendBtn": "Send suggestion",
+    "confirmMsg": "You're going to be the fucking death of me with all these ideas and changes, you whiny little shits!"
+  },
   "admin": {
     "title": "Admin panel",
     "welcome": "Welcome",
@@ -211,6 +219,7 @@
       "username": "Username",
       "lang": "Language",
       "predictions": "Predictions",
+      "suggestions": "Suggestions",
       "payment": "Payment (100 NOK)",
       "actions": "Actions",
       "editBtn": "Edit",
