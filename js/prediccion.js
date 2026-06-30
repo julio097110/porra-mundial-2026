@@ -888,7 +888,7 @@ function renderEliminatorias(contenedor) {
     ${cerrado
       ? `<div class="notice locked">🔒 ${t('knockouts.closedNotice')}</div>`
       : (_rezagado && !_plazoElim
-          ? `<div class="notice" style="background:#fff9ec; border-color:#f0d98c;">⏳ Tienes tiempo extra para completar tus predicciones de eliminatorias. Avisa al administrador cuando las tengas listas.</div>`
+          ? `<div class="notice" style="background:#fff9ec; border-color:#f0d98c;">⏳ ${t('knockouts.delayedNotice')}</div>`
           : `<div class="notice">🔓 ${t('knockouts.openUntil')} <strong>${fechaStr}</strong> ${t('myPool.localTime')}</div>`)
     }
 
