@@ -60,6 +60,10 @@
       <span class="tab-icon">👁️</span>
       <span class="tab-label" id="tabLabelPrevisiones">Previsiones</span>
     </button>
+    <button class="app-tab" id="tabSugerencias"  onclick="window.appMostrarTab('sugerencias')"  role="tab" aria-selected="false">
+      <span class="tab-icon">💡</span>
+      <span class="tab-label" id="tabLabelSugerencias">Sugerencias</span>
+    </button>
     <!-- Tab admin (oculto para jugadores normales) -->
     <button class="app-tab hidden" id="tabAdmin" onclick="window.appMostrarTab('admin')" role="tab" aria-selected="false">
       <span class="tab-icon">⚙️</span>
@@ -107,6 +111,16 @@
           <div class="loading-inline">
             <div class="spinner-sm"></div>
             <span id="loadingPrevisiones">Cargando...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SUGERENCIAS ─────────────────────────────────── -->
+      <section id="secSugerencias" class="hidden" role="tabpanel">
+        <div id="sugerenciasContent">
+          <div class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span id="loadingSugerencias">Cargando...</span>
           </div>
         </div>
       </section>
@@ -235,6 +249,7 @@
       document.getElementById('tabLabelResultados').textContent   = t('nav.scores');
       document.getElementById('tabLabelClasificacion').textContent= t('nav.standings');
       document.getElementById('tabLabelPrevisiones').textContent  = t('nav.allPredictions');
+      document.getElementById('tabLabelSugerencias').textContent  = t('nav.suggestions');
       document.getElementById('tabLabelAdmin').textContent        = t('nav.adminPanel');
 
       // Botón logout
@@ -245,6 +260,7 @@
       document.getElementById('loadingResultados').textContent   = t('common.loading');
       document.getElementById('loadingClasificacion').textContent= t('common.loading');
       document.getElementById('loadingPrevisiones').textContent  = t('common.loading');
+      document.getElementById('loadingSugerencias').textContent  = t('common.loading');
       document.getElementById('loadingAdmin').textContent        = t('common.loading');
 
       // Sincronizar botones de idioma
@@ -286,7 +302,7 @@
       window._refreshTextos = null;
 
       // Ocultar todas las secciones
-      const secciones = ['miPorra','resultados','clasificacion','previsiones','admin'];
+      const secciones = ['miPorra','resultados','clasificacion','previsiones','sugerencias','admin'];
       secciones.forEach(s => {
         document.getElementById('sec' + capitalizar(s)).classList.add('hidden');
         document.getElementById('tab'  + capitalizar(s))?.setAttribute('aria-selected','false');
@@ -329,6 +345,10 @@
           case 'previsiones':
             const { initPrevisiones } = await import('./js/previsiones.js');
             await initPrevisiones(window._app);
+            break;
+          case 'sugerencias':
+            const { initSugerencias } = await import('./js/sugerencias.js');
+            await initSugerencias(window._app);
             break;
           case 'admin':
             if (window._app.esAdmin) {
