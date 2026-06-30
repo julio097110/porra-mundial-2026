@@ -41,6 +41,24 @@ function renderSugerencias(contenedor) {
         ${t('suggestions.subtitle')}
       </div>
 
+      <div id="sugerenciaConfirmBox" class="hidden" style="
+        position:relative; background:#e8f4d8; border:2px solid var(--gp,#dde8cc);
+        border-radius:var(--radius); padding:18px 40px 18px 18px; margin-bottom:14px;
+      ">
+        <button
+          onclick="window._cerrarConfirmSugerencia()"
+          aria-label="Cerrar"
+          style="
+            position:absolute; top:8px; right:10px; background:none; border:none;
+            font-size:20px; line-height:1; color:var(--gd); cursor:pointer; padding:4px;
+          "
+        >✕</button>
+        <div id="sugerenciaConfirmTexto" style="
+          font-size:28px; line-height:1.25; font-weight:600;
+          letter-spacing:0.5px; color:var(--gd);
+        "></div>
+      </div>
+
       <div class="card">
         <div class="card-body">
           <textarea
@@ -63,6 +81,11 @@ function renderSugerencias(contenedor) {
       </div>
     </div>`;
 
+  window._cerrarConfirmSugerencia = () => {
+    const box = document.getElementById('sugerenciaConfirmBox');
+    if (box) box.classList.add('hidden');
+  };
+
   window._enviarSugerencia = async () => {
     const textarea = document.getElementById('sugerenciaTexto');
     const btn      = document.getElementById('btnEnviarSugerencia');
@@ -75,7 +98,13 @@ function renderSugerencias(contenedor) {
       await updateDoc(doc(db, 'usuarios', _app.uid), {
         sugerencias: increment(1)
       });
-      window.mostrarToast(t('suggestions.confirmMsg'), 6000);
+      const box   = document.getElementById('sugerenciaConfirmBox');
+      const texto = document.getElementById('sugerenciaConfirmTexto');
+      if (box && texto) {
+        texto.textContent = t('suggestions.confirmMsg');
+        box.classList.remove('hidden');
+        box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     } catch (e) {
       console.error('[sugerencias]', e);
       window.mostrarToast(t('common.error'), 4000);
