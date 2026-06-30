@@ -8,6 +8,7 @@
     "scores": "Resultados",
     "standings": "Clasificación",
     "allPredictions": "Ver todas las predicciones",
+    "suggestions": "Sugerencias",
     "adminPanel": "Panel admin",
     "logout": "Cerrar sesión"
   },
@@ -192,6 +193,13 @@
     "missed": "✗",
     "legend": "✓ verde = exacto · ✗ rojo = fallo · sin color = pendiente"
   },
+  "suggestions": {
+    "title": "Sugerencias",
+    "subtitle": "¿Tienes alguna idea o propuesta de cambio para la porra? Escríbela aquí.",
+    "placeholder": "Escribe tu sugerencia...",
+    "sendBtn": "Enviar sugerencia",
+    "confirmMsg": "¡Me vais a comer los huevos por debajo del culo como si fuera un racimo de uvas! Qué pesados sois con las ideas y los cambios."
+  },
   "admin": {
     "title": "Panel de administración",
     "welcome": "Bienvenido",
@@ -211,6 +219,7 @@
       "username": "Usuario",
       "lang": "Idioma",
       "predictions": "Predicciones",
+      "suggestions": "Sugerencias",
       "payment": "Pago (100 NOK)",
       "actions": "Acciones",
       "editBtn": "Editar",
