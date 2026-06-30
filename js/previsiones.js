@@ -294,7 +294,7 @@ function renderVistaEliminatorias(pagina) {
   if (yo && yo.rezagado_elim && yo.rezagado_elim.activo) {
     return `
       <div class="notice locked" style="margin-top:4px;">
-        ⏳ Hasta que no confirmes al administrador que tienes todo OK no podrás ver las predicciones del resto.
+        ⏳ ${t('allPredictions.delayedNotice')}
       </div>`;
   }
 
