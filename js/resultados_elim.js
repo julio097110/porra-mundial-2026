@@ -20,6 +20,7 @@ import {
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_ELIM_R32, PARTIDOS_ELIM, MAPA_DEPENDENCIAS, getPartidoElimPorId } from '../data/partidos_elim.js';
 import { abrirModalPartido } from './informe-modal.js';
+import { calcularPuntosPartidoElim, equiposCoincidenElim } from './puntos-elim.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app            = null;
@@ -653,40 +654,9 @@ async function recalcularPuntosElim(partidoId) {
   }
 }
 
-export function equiposCoincidenElim(pred, resultadoReal) {
-  return pred.equipo_local     === resultadoReal.equipo_local &&
-         pred.equipo_visitante === resultadoReal.equipo_visitante;
-}
+// Cálculo de puntos: única fuente de verdad en puntos-elim.js,
+// usada también por informe-modal.js y admin.js. No reimplementar aquí.
 
-export function calcularPuntosPartidoElim(pred, resultadoReal) {
-  if (!equiposCoincidenElim(pred, resultadoReal)) return 0;
-
-  const pl = parseInt(pred.local);
-  const pv = parseInt(pred.visitante);
-  if (isNaN(pl) || isNaN(pv)) return 0;
-
-  const gl         = resultadoReal.goles_local;
-  const gv         = resultadoReal.goles_visitante;
-  const hayEmpate90 = gl === gv;
-
-  if (pl === gl && pv === gv) {
-    if (!hayEmpate90) return 4;
-    return pred.ganador === resultadoReal.equipo_que_pasa ? 4 : 1;
-  }
-
-  if (hayEmpate90) {
-    if (pl === pv) {
-      return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 1;
-    }
-    return 0;
-  }
-
-  const signoPred = Math.sign(pl - pv);
-  const signoReal = Math.sign(gl - gv);
-  if (signoPred === signoReal) return 2;
-
-  return 0;
-}
 
 // ── Puntos especiales de campeón/subcampeón (al confirmar la final) ──
 async function recalcularPuntosEspecialesFinal(campeonReal, subcampeonReal) {
