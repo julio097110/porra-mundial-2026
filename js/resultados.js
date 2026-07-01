@@ -8,18 +8,18 @@
 import { db } from './firebase-config.js';
 import {
   doc, getDoc, setDoc, deleteDoc, collection,
-  getDocs, onSnapshot, serverTimestamp,
+  getDocs, serverTimestamp,
   query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_GRUPOS, GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
-import { initResultadosElim, detenerResultadosElim } from './resultados_elim.js';
+import { initResultadosElim, detenerResultadosElim, refrescarResultadosElim } from './resultados_elim.js';
 import { abrirModalPartido } from './informe-modal.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
 let _resultados  = {};   // { partidoId: { goles_local, goles_visitante, confirmado } }
-let _unsubscribe = null;
+let _cargandoRefresco = false;
 let _subTabRes   = 'grupos';   // 'grupos' | 'eliminatorias'
 
 // ── Punto de entrada ─────────────────────────────────────────
@@ -46,18 +46,28 @@ export async function initResultados(app) {
       renderShellResultados(shell);
     };
 
-    // Escuchar cambios en tiempo real (grupos). Solo re-renderiza la
-    // sub-vista de grupos si es la que está activa; si el admin está
-    // viendo eliminatorias, no la pisa.
-    _unsubscribe = onSnapshot(collection(db, 'resultados'), (snap) => {
-      snap.forEach(d => { _resultados[d.id] = d.data(); });
-      if (_subTabRes !== 'grupos') return;
-      const c = document.getElementById('resultadosTabContent');
-      if (c) {
-        if (_app.esAdmin) renderAdmin(c);
-        else renderJugador(c);
+    // Refresco manual (sustituye al listener en tiempo real, ver notas
+    // en CONTEXTO_PROYECTO.md — parche de emergencia por cuota de Firestore)
+    window._resRefrescar = async () => {
+      if (_cargandoRefresco) return;
+      _cargandoRefresco = true;
+      const btn = document.getElementById('resRefrescarBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+      try {
+        if (_subTabRes === 'eliminatorias') {
+          await refrescarResultadosElim();
+        } else {
+          await cargarResultadosFirestore();
+          const c = document.getElementById('resultadosTabContent');
+          if (c) {
+            if (_app.esAdmin) renderAdmin(c);
+            else renderJugador(c);
+          }
+        }
+      } finally {
+        _cargandoRefresco = false;
       }
-    });
+    };
 
   } catch (e) {
     console.error('[resultados]', e);
@@ -68,11 +78,17 @@ export async function initResultados(app) {
 // ── Shell con sub-toggle Grupos/Eliminatorias ─────────────────
 function renderShellResultados(contenedor) {
   contenedor.innerHTML = `
-    <div class="sub-toggle">
-      <button class="sub-btn ${_subTabRes === 'grupos' ? 'active' : ''}"
-        onclick="window._resultadosSetTab('grupos')">${t('subNav.groupStage')}</button>
-      <button class="sub-btn ${_subTabRes === 'eliminatorias' ? 'active' : ''}"
-        onclick="window._resultadosSetTab('eliminatorias')">${t('subNav.knockouts')}</button>
+    <div class="sub-toggle" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+      <div style="display:flex; gap:8px;">
+        <button class="sub-btn ${_subTabRes === 'grupos' ? 'active' : ''}"
+          onclick="window._resultadosSetTab('grupos')">${t('subNav.groupStage')}</button>
+        <button class="sub-btn ${_subTabRes === 'eliminatorias' ? 'active' : ''}"
+          onclick="window._resultadosSetTab('eliminatorias')">${t('subNav.knockouts')}</button>
+      </div>
+      <button id="resRefrescarBtn" onclick="window._resRefrescar()"
+        title="${t('common.refresh')}"
+        style="background:none; border:none; cursor:pointer; font-size:16px;
+          padding:2px 6px; border-radius:4px; line-height:1; color:var(--tm); flex-shrink:0;">🔄</button>
     </div>
 
     <div id="resultadosTabContent"></div>
