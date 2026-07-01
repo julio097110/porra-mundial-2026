@@ -21,7 +21,7 @@ import {
 import { GRUPOS, getPartidosPorGrupo, EQUIPOS_48 } from '../data/partidos.js';
 import { PARTIDOS_ELIM_R32 } from '../data/partidos_elim.js';
 import { calcularPuntosPartido, recalcularPuntosTerceros, borrarPuntosTerceros } from './resultados.js';
-import { calcularPuntosPartidoElim } from './resultados_elim.js';
+import { calcularPuntosPartidoElim } from './puntos-elim.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app            = null;
