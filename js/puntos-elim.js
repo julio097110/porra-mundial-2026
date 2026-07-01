@@ -5,7 +5,8 @@
 //  Única fuente de verdad para la puntuación de eliminatorias.
 //  Usada tanto por resultados_elim.js (cálculo oficial, guardado
 //  en Firestore al confirmar un resultado) como por
-//  informe-modal.js (desglose visual de puntos por jugador/partido).
+//  informe-modal.js (desglose visual de puntos por jugador/partido)
+//  y admin.js (auditoría de integridad).
 //
 //  No debe existir ninguna otra copia de esta lógica en el
 //  proyecto. Si se necesita en un archivo nuevo, importar desde
@@ -13,6 +14,9 @@
 // ============================================================
 
 // ¿La predicción tiene los dos equipos correctos para este cruce?
+// Comparación por posición: local predicho vs local real, visitante
+// predicho vs visitante real (la posición viene dada por el cuadro
+// de la FIFA y es la misma para todos los jugadores).
 export function equiposCoincidenElim(pred, resultadoReal) {
   return pred.equipo_local     === resultadoReal.equipo_local &&
          pred.equipo_visitante === resultadoReal.equipo_visitante;
@@ -21,53 +25,49 @@ export function equiposCoincidenElim(pred, resultadoReal) {
 // Calcula los puntos de una predicción de eliminatoria frente al
 // resultado real confirmado.
 //
-// Criterios (equipos correctos):
-//   4 pts — marcador exacto (90') y, si hubo empate en 90',
-//           también acierta quién pasa
-//   1 pt  — marcador exacto (90') pero falla quién pasa tras empate
-//   2 pts — empate en 90' predicho (no exacto) + acierta quién pasa
-//   2 pts — acierta el signo del resultado (sin marcador exacto, sin empate)
-//   0 pts — cualquier otro caso
+// Dos reglas independientes y sumables (2026-07-01):
 //
-// Criterio (equipos incorrectos):
-//   2 pts — el equipo que el jugador marcó como ganador (pred.ganador)
-//           coincide con el equipo que realmente pasó de ronda
-//           (resultadoReal.equipo_que_pasa), aunque el cruce predicho
-//           esté mal (p. ej. predijo "Argentina vs Francia" y el
-//           cruce real era "Alemania vs Francia", pero acertó que
-//           Francia pasaba)
-//   0 pts — en cualquier otro caso
+//   Regla A — Vencedor / quién pasa acertado: +2 pts
+//     Se cumple si el equipo que el jugador marcó como ganador
+//     coincide con el equipo que realmente pasó de ronda.
+//     Se comprueba SIEMPRE, sin condiciones previas: no importa si
+//     los equipos del cruce predicho eran correctos, no importa si
+//     hubo empate en 90' o no, no importa el marcador.
+//
+//   Regla B — Equipos + marcador exacto: +2 pts
+//     Se cumple si el equipo local predicho coincide con el real,
+//     el visitante predicho coincide con el real (por posición), Y
+//     el marcador predicho es idéntico al marcador real (90').
+//
+//   Total = Regla A + Regla B → posibles: 0, 2 (por A), 2 (por B) o 4.
+//
+// Ejemplos:
+//   - Marcador exacto + acierta quién pasa            → 4 pts (A+B)
+//   - Marcador exacto de un empate, falla quién pasa   → 2 pts (solo B)
+//   - Acierta quién pasa, sin marcador exacto          → 2 pts (solo A)
+//   - Acierta quién pasa aunque el cruce fuera erróneo  → 2 pts (solo A)
+//   - No acierta ni marcador exacto ni quién pasa       → 0 pts
 export function calcularPuntosPartidoElim(pred, resultadoReal) {
   if (!pred || !resultadoReal?.confirmado) return 0;
 
-  if (!equiposCoincidenElim(pred, resultadoReal)) {
-    return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 0;
+  let puntos = 0;
+
+  // ── Regla A — Vencedor / quién pasa acertado ──────────────────
+  if (pred.ganador && pred.ganador === resultadoReal.equipo_que_pasa) {
+    puntos += 2;
   }
 
-  const pl = parseInt(pred.local);
-  const pv = parseInt(pred.visitante);
-  if (isNaN(pl) || isNaN(pv)) return 0;
+  // ── Regla B — Equipos correctos + marcador exacto ─────────────
+  if (equiposCoincidenElim(pred, resultadoReal)) {
+    const pl = parseInt(pred.local);
+    const pv = parseInt(pred.visitante);
+    const gl = resultadoReal.goles_local;
+    const gv = resultadoReal.goles_visitante;
 
-  const gl         = resultadoReal.goles_local;
-  const gv         = resultadoReal.goles_visitante;
-  const hayEmpate90 = gl === gv;
-
-  if (pl === gl && pv === gv) {
-    if (!hayEmpate90) return 4;
-    return pred.ganador === resultadoReal.equipo_que_pasa ? 4 : 1;
-  }
-
-  if (hayEmpate90) {
-    if (pl === pv) {
-      return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 1;
+    if (!isNaN(pl) && !isNaN(pv) && pl === gl && pv === gv) {
+      puntos += 2;
     }
-    // No predijo empate pero puede haber acertado quién pasa
-    return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 0;
   }
 
-  const signoPred = Math.sign(pl - pv);
-  const signoReal = Math.sign(gl - gv);
-  if (signoPred === signoReal) return 2;
-
-  return 0;
+  return puntos;
 }
