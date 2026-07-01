@@ -374,10 +374,11 @@ function renderVistaEliminatorias(pagina) {
           // rojo si hay resultado confirmado pero no coincide, sin color si pendiente.
           let scoreColor = '';
           if (res) {
-            const equiposOk = pred.equipo_local     === res.equipo_local &&
-                              pred.equipo_visitante === res.equipo_visitante;
-            const golesOk   = parseInt(local)     === res.goles_local &&
-                              parseInt(visitante)  === res.goles_visitante;
+            const equiposOk = !pred.equipo_local ||
+                              (pred.equipo_local     === res.equipo_local &&
+                               pred.equipo_visitante === res.equipo_visitante);
+            const golesOk   = parseInt(local)    === res.goles_local &&
+                              parseInt(visitante) === res.goles_visitante;
             scoreColor = (equiposOk && golesOk) ? 'color:#639922; font-weight:700;'
                                                  : 'color:#c0392b; font-weight:700;';
           }
@@ -689,9 +690,11 @@ async function cargarTodasPrediccionesElim() {
     if (!data.uid || !data.partido_id) return;
     if (!_predElim[data.uid]) _predElim[data.uid] = {};
     _predElim[data.uid][data.partido_id] = {
-      local:     data.local,
-      visitante: data.visitante,
-      ganador:   data.ganador || null
+      local:            data.local,
+      visitante:        data.visitante,
+      ganador:          data.ganador          || null,
+      equipo_local:     data.equipo_local     || null,
+      equipo_visitante: data.equipo_visitante || null,
     };
   });
 }
