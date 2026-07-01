@@ -417,6 +417,7 @@
     "pred_label": "pred",
     "real_label": "real",
     "advances": "Pasa",
+    "winner_correct": "Acertar quién gana/pasa de ronda",
     "pending": "(pendiente)",
     "coming_soon": "🚧 Próximamente",
     "no_groups": "Sin partidos confirmados todavía.",
