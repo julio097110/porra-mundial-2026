@@ -15,7 +15,7 @@
 import { db } from './firebase-config.js';
 import {
   collection, doc, getDoc, getDocs,
-  onSnapshot, query, orderBy
+  query, orderBy
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t } from './i18n.js';
 import { abrirModalJugador } from './informe-modal.js';
@@ -26,7 +26,7 @@ let _ranking     = [];    // [{ uid, nombre, total, pagado, esYo }]
 let _config      = {};    // config general (bote_total)
 let _paginaActual= 1;
 const POR_PAGINA = 20;
-let _unsubscribe = null;
+let _cargandoRefresco = false;
 let _partidosJugados = 0; // partidos confirmados (grupos + eliminatorias, ver cargarPartidosJugados)
 
 // Total de partidos del torneo: 72 de fase de grupos + 32 de eliminatorias.
@@ -58,15 +58,22 @@ export async function initClasificacion(app) {
       if (c) renderClasificacion(c);
     };
 
-    // Escuchar cambios en tiempo real en clasificacion
-    _unsubscribe = onSnapshot(
-      collection(db, 'clasificacion'),
-      async () => {
+    // Refresco manual (sustituye al listener en tiempo real, ver notas
+    // en CONTEXTO_PROYECTO.md — parche de emergencia por cuota de Firestore)
+    window._clRefrescar = async () => {
+      if (_cargandoRefresco) return;
+      _cargandoRefresco = true;
+      const btn = document.getElementById('clRefrescarBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+      try {
         await cargarRanking();
+        await cargarPartidosJugados();
         const c = document.getElementById('clasificacionContent');
         if (c) renderClasificacion(c);
+      } finally {
+        _cargandoRefresco = false;
       }
-    );
+    };
 
   } catch (e) {
     console.error('[clasificacion]', e);
@@ -248,10 +255,14 @@ function renderClasificacion(contenedor) {
 
   let html = `<div style="margin-top:8px;">`;
 
-  // Notice de jornada
+  // Notice de jornada + botón de refresco manual
   html += `
-    <div class="notice">
-      📊 ${t('standings.matchday')} ${t('standings.played')} · ${_partidosJugados} ${t('standings.matches')} ${TOTAL_PARTIDOS}
+    <div class="notice" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+      <span>📊 ${t('standings.matchday')} ${t('standings.played')} · ${_partidosJugados} ${t('standings.matches')} ${TOTAL_PARTIDOS}</span>
+      <button id="clRefrescarBtn" onclick="window._clRefrescar()"
+        title="${t('common.refresh')}"
+        style="background:none; border:none; cursor:pointer; font-size:16px;
+          padding:2px 6px; border-radius:4px; line-height:1; color:var(--tm); flex-shrink:0;">🔄</button>
     </div>`;
 
   // Tarjeta bote total (si existe)
