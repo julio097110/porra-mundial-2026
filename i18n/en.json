@@ -417,6 +417,7 @@
     "pred_label": "pred",
     "real_label": "actual",
     "advances": "Advances",
+    "winner_correct": "Correctly picking who wins/advances",
     "pending": "(pending)",
     "coming_soon": "🚧 Coming soon",
     "no_groups": "No confirmed matches yet.",
