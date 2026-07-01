@@ -441,10 +441,6 @@ function renderCriterios(bote, p1, p2, p3) {
         <span class="criteria-pts">${t('standings.pts.koExact')}</span>
       </div>
       <div class="criteria-row">
-        <span class="criteria-text">${t('standings.criteria.koDrawPass')}</span>
-        <span class="criteria-pts">${t('standings.pts.koDrawPass')}</span>
-      </div>
-      <div class="criteria-row">
         <span class="criteria-text">${t('standings.criteria.koDrawOnly')}</span>
         <span class="criteria-pts">${t('standings.pts.koDrawOnly')}</span>
       </div>
@@ -455,6 +451,9 @@ function renderCriterios(bote, p1, p2, p3) {
       <div class="criteria-row">
         <span class="criteria-text">${t('standings.criteria.runnerUp')}</span>
         <span class="criteria-pts">${t('standings.pts.runnerUp')}</span>
+      </div>
+      <div style="margin:2px 0 8px; font-size:11px; color:var(--tm);">
+        ${t('standings.champRunnerUpNote')}
       </div>
       <div class="criteria-row">
         <span class="criteria-text">${t('standings.criteria.mvp')}</span>
