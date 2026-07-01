@@ -23,6 +23,7 @@ let _predEsp       = {};   // { uid: { campeon, subcampeon, mvp, goleador } }
 let _predElim      = {};   // { uid: { partidoId: {local,visitante,ganador} } }
 let _predTerceros  = {};   // { uid: string[] }
 let _resultados    = {};   // { partidoId: { goles_local, goles_visitante } }
+let _resultadosElim = {}; // { partidoId: { ...doc res_ko } } — resultados confirmados de eliminatorias
 
 // ── Mejores terceros clasificados (hardcodeados jun 2026) ─────
 const TERCEROS_PASARON = new Set([
@@ -86,6 +87,7 @@ export async function initPrevisiones(app) {
 
     // Cargar eliminatorias y terceros de forma independiente (no bloquean si fallan)
     try { await cargarTodasPrediccionesElim();    } catch(e) { console.warn('[previsiones] elim:', e); }
+    try { await cargarResultadosElim();           } catch(e) { console.warn('[previsiones] res_elim:', e); }
     try { await cargarTodasPrediccionesTerceros();} catch(e) { console.warn('[previsiones] terceros:', e); }
 
     renderPrevisiones(contenedor);
@@ -366,12 +368,34 @@ function renderVistaEliminatorias(pagina) {
             return `<div class="prev-cell">—</div>`;
           }
 
+          const res = _resultadosElim[p.id];
+
+          // Color del marcador: verde si equipos Y goles coinciden exactamente (90'),
+          // rojo si hay resultado confirmado pero no coincide, sin color si pendiente.
+          let scoreColor = '';
+          if (res) {
+            const equiposOk = pred.equipo_local     === res.equipo_local &&
+                              pred.equipo_visitante === res.equipo_visitante;
+            const golesOk   = parseInt(local)     === res.goles_local &&
+                              parseInt(visitante)  === res.goles_visitante;
+            scoreColor = (equiposOk && golesOk) ? 'color:#639922; font-weight:700;'
+                                                 : 'color:#c0392b; font-weight:700;';
+          }
+
           const scoreTexto = (local !== '' && visitante !== '')
-            ? `${local}—${visitante}`
+            ? `<span style="${scoreColor}">${local}—${visitante}</span>`
             : '?—?';
 
+          // Color de la flecha: verde si acertó quién pasa, rojo si no, gris neutro si pendiente.
+          let ganadorColor = 'color:var(--gm);';
+          if (res && ganador) {
+            ganadorColor = (ganador === res.equipo_que_pasa)
+              ? 'color:#639922;'
+              : 'color:#c0392b;';
+          }
+
           const ganadorTexto = ganador
-            ? `<br><span style="font-size:9px; color:var(--gm); font-weight:600;">→ ${abreviar(ganador, 8)}</span>`
+            ? `<br><span style="font-size:9px; ${ganadorColor} font-weight:600;">→ ${abreviar(ganador, 8)}</span>`
             : '';
 
           return `<div class="prev-cell" style="font-size:10px; line-height:1.4;">
@@ -645,6 +669,16 @@ async function cargarResultados() {
   const snap = await getDocs(collection(db, 'resultados'));
   snap.forEach(d => {
     _resultados[d.id] = d.data();
+  });
+}
+
+async function cargarResultadosElim() {
+  const snap = await getDocs(collection(db, 'res_ko'));
+  snap.forEach(d => {
+    const data = d.data();
+    if (data.confirmado && data.partido_id) {
+      _resultadosElim[data.partido_id] = data;
+    }
   });
 }
 
