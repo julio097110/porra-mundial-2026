@@ -18,6 +18,7 @@ import { t } from './i18n.js';
 import {
   collection, doc, getDoc, getDocs, query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { calcularPuntosPartidoElim } from './puntos-elim.js';
 
 // ── Mapa estático de los 72 partidos de grupos ────────────────
 const PARTIDOS_GRUPOS_MAP = {
@@ -125,32 +126,9 @@ function calcGrupo(pred, gl, gv) {
   return sr === sp ? 1 : 0;
 }
 
-function calcElim(pred, res) {
-  if (!pred || !res?.confirmado) return 0;
-  const gl = res.goles_local, gv = res.goles_visitante;
-  const pl = parseInt(pred.local ?? -1), pv = parseInt(pred.visitante ?? -1);
-  if (isNaN(pl) || isNaN(pv)) return 0;
+// (cálculo de puntos de eliminatoria: ver calcularPuntosPartidoElim,
+// importada desde puntos-elim.js — única fuente de verdad)
 
-  const ganOk = pred.ganador && res.equipo_que_pasa &&
-    norm(pred.ganador) === norm(res.equipo_que_pasa);
-  const eqOk = res.equipo_local && res.equipo_visitante &&
-    pred.equipo_local && pred.equipo_visitante &&
-    norm(res.equipo_local)     === norm(pred.equipo_local) &&
-    norm(res.equipo_visitante) === norm(pred.equipo_visitante);
-
-  if (!eqOk) return ganOk ? 1 : 0;
-
-  if (!res.hay_prorroga_penales) {
-    if (pl === gl && pv === gv && ganOk) return 4;
-    if (ganOk) return 2;
-    return 0;
-  } else {
-    if (pl === gv && pv === gl && ganOk) return 2;
-    if (pl === gv && pv === gl) return 1;
-    if (ganOk) return 1;
-    return 0;
-  }
-}
 
 // ── Badge de puntos ───────────────────────────────────────────
 function ptsBadge(pts) {
@@ -247,6 +225,11 @@ const CSS_MODAL = `
   .im-match-name { font-weight:500; }
   .im-result { font-weight:700; color:#639922; margin:0 4px; }
   .im-pred { font-size:11px; color:#7a9460; margin-top:1px; }
+  .im-tag-ganador {
+    font-size:10px; font-weight:700; color:#3b6d11;
+    background:#e8f3da; border-radius:5px; padding:1px 6px;
+    display:inline-block; margin-top:3px;
+  }
   .im-empty { font-size:12px; color:#7a9460; padding:10px 0; font-style:italic; }
   .im-pending { font-size:12px; color:#7a9460; padding:10px 0;
     background:#f8faf6; border-radius:8px; text-align:center;
@@ -390,7 +373,7 @@ export async function abrirModalJugador(uid, nombre) {
       .sort(([a], [b]) => a.localeCompare(b));
 
     elimConfirmados.forEach(([id, r]) => {
-      total += calcElim(predElim[id], r);
+      total += calcularPuntosPartidoElim(predElim[id], r);
     });
 
     const itemsEsp = calcEspeciales(esp, config, resElim);
@@ -580,7 +563,7 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, clasificadosG
   } else {
     elimConf.forEach(([id, res]) => {
       const pred   = predElim[id];
-      const pts    = calcElim(pred, res);
+      const pts    = calcularPuntosPartidoElim(pred, res);
       const ronda  = nombreRonda(res.ronda) || id;
       const local  = res.equipo_local     || '?';
       const visit  = res.equipo_visitante || '?';
@@ -598,6 +581,10 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, clasificadosG
           ? ` → ${pasa}`
           : '';
 
+      const tagGanadorAcertado = pts === 2
+        ? `<div class="im-tag-ganador">${t('informe.winner_correct')}</div>`
+        : '';
+
       html += `
         <div class="im-row">
           <div class="im-match">
@@ -608,6 +595,7 @@ function renderModalJugador(nombre, total, gruposConf, predGrupos, clasificadosG
               ${visit}${pasaStr}
             </div>
             <div class="im-pred">${t('informe.pred_label')}: ${predStr}</div>
+            ${tagGanadorAcertado}
           </div>
           ${ptsBadge(pts)}
         </div>`;
@@ -804,7 +792,7 @@ async function _modalPartidoElim(partidoId) {
   // Construir filas
   const filas = Object.entries(nombres).map(([uid, nombre]) => {
     const pred = preds[uid];
-    const pts  = calcElim(pred, res);
+    const pts  = calcularPuntosPartidoElim(pred, res);
     let predStr = '—';
     if (pred) {
       predStr = `${pred.local ?? '?'}–${pred.visitante ?? '?'}`;
