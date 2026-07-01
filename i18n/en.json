@@ -401,7 +401,8 @@
     "date": "Date",
     "venue": "Venue",
     "page": "Page",
-    "and": "and"
+    "and": "and",
+    "refresh": "Refresh"
   },
   "informe": {
     "title_player": "📊 Points breakdown",
