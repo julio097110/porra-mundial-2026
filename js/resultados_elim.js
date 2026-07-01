@@ -14,7 +14,7 @@
 import { db } from './firebase-config.js';
 import {
   doc, getDoc, setDoc, deleteDoc, collection,
-  getDocs, onSnapshot, serverTimestamp,
+  getDocs, serverTimestamp,
   query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
@@ -25,7 +25,6 @@ import { calcularPuntosPartidoElim, equiposCoincidenElim } from './puntos-elim.j
 // ── Estado ────────────────────────────────────────────────────
 let _app            = null;
 let _resultadosElim = {};   // { partidoId: {...documento res_ko} }
-let _unsubscribe    = null;
 
 // Orden de rondas para renderizado agrupado
 const ORDEN_RONDAS = ['r32', 'r16', 'qf', 'semi', '3er', 'final'];
@@ -64,27 +63,28 @@ export async function initResultadosElim(app, contenedor) {
       renderJugadorElim(contenedor);
     }
 
-    if (_unsubscribe) _unsubscribe();
-    _unsubscribe = onSnapshot(collection(db, 'res_ko'), (snap) => {
-      snap.forEach(d => { _resultadosElim[d.id] = d.data(); });
-      const c = document.getElementById('resultadosTabContent');
-      if (c) {
-        if (_app.esAdmin) renderAdminElim(c);
-        else renderJugadorElim(c);
-      }
-    });
-
   } catch (e) {
     console.error('[resultados_elim]', e);
     contenedor.innerHTML = `<div class="notice error">⚠️ ${t('common.error')}</div>`;
   }
 }
 
-export function detenerResultadosElim() {
-  if (_unsubscribe) {
-    _unsubscribe();
-    _unsubscribe = null;
+// Refresco manual (sustituye al listener en tiempo real, ver notas
+// en CONTEXTO_PROYECTO.md — parche de emergencia por cuota de Firestore)
+export async function refrescarResultadosElim() {
+  await cargarResultadosElimFirestore();
+  const c = document.getElementById('resultadosTabContent');
+  if (!c) return;
+  if (_app?.esAdmin) {
+    renderAdminElim(c);
+  } else {
+    renderJugadorElim(c);
   }
+}
+
+export function detenerResultadosElim() {
+  // Ya no hay listener que limpiar (parche de emergencia sin tiempo real),
+  // se mantiene la función para no romper las llamadas existentes.
 }
 
 // ══════════════════════════════════════════════════════════════
