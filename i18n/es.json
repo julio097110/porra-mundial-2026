@@ -401,7 +401,8 @@
     "date": "Fecha",
     "venue": "Sede",
     "page": "Página",
-    "and": "y"
+    "and": "y",
+    "refresh": "Refrescar"
   },
   "informe": {
     "title_player": "📊 Desglose de puntos",
