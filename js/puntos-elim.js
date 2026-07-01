@@ -61,7 +61,8 @@ export function calcularPuntosPartidoElim(pred, resultadoReal) {
     if (pl === pv) {
       return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 1;
     }
-    return 0;
+    // No predijo empate pero puede haber acertado quién pasa
+    return pred.ganador === resultadoReal.equipo_que_pasa ? 2 : 0;
   }
 
   const signoPred = Math.sign(pl - pv);
