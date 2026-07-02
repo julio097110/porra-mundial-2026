@@ -13,6 +13,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t, formatMatchDate } from './i18n.js';
 import { PARTIDOS_GRUPOS, GRUPOS, getPartidosPorGrupo } from '../data/partidos.js';
+import { RESULTADOS_GRUPOS_FINAL } from '../data/resultados-grupos-final.js';
 import { initResultadosElim, detenerResultadosElim, refrescarResultadosElim } from './resultados_elim.js';
 import { abrirModalPartido } from './informe-modal.js';
 
@@ -969,9 +970,13 @@ async function recalcularTotales() {
 //  HELPERS
 // ══════════════════════════════════════════════════════════════
 
+// Fase de grupos cerrada: los resultados ya no se leen de Firestore
+// (ver data/resultados-grupos-final.js). Si algún día se corrige un
+// resultado de grupos desde el admin, hay que avisar para regenerar
+// ese archivo — la escritura en Firestore sigue funcionando con
+// normalidad, pero esta vista no la reflejará hasta regenerarlo.
 async function cargarResultadosFirestore() {
-  const snap = await getDocs(collection(db, 'resultados'));
-  snap.forEach(d => { _resultados[d.id] = d.data(); });
+  _resultados = { ...RESULTADOS_GRUPOS_FINAL };
 }
 
 function agruparPartidosPorFechaYGrupo() {
