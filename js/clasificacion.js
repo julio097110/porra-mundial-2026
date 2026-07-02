@@ -19,6 +19,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { t } from './i18n.js';
 import { abrirModalJugador } from './informe-modal.js';
+import { RESULTADOS_GRUPOS_FINAL } from '../data/resultados-grupos-final.js';
+import { USUARIOS_FINAL } from '../data/usuarios-final.js';
 
 // ── Estado ────────────────────────────────────────────────────
 let _app         = null;
@@ -84,12 +86,8 @@ export async function initClasificacion(app) {
 // ── Cargar y ordenar ranking ──────────────────────────────────
 async function cargarRanking() {
   try {
-    // Obtener todos los usuarios
-    const usuariosSnap = await getDocs(collection(db, 'usuarios'));
-    const usuarios = {};
-    usuariosSnap.forEach(d => {
-      usuarios[d.id] = d.data();
-    });
+    // Usuarios: lista cerrada, hardcodeada (ver data/usuarios-final.js)
+    const usuarios = { ...USUARIOS_FINAL };
 
     // Obtener puntuaciones
     const clSnap = await getDocs(collection(db, 'clasificacion'));
@@ -125,15 +123,16 @@ async function cargarRanking() {
 // window._resultadosCache porque ese objeto global nunca llega a
 // rellenarse desde ningún módulo — ese era el origen del bug que
 // mostraba siempre "0 partidos jugados".
+// igual que hace resultados_elim.js para eliminatorias. Los partidos
+// de grupos ya no se leen de Firestore (fase cerrada, ver
+// data/resultados-grupos-final.js); res_ko sigue en vivo porque las
+// eliminatorias siguen en curso.
 async function cargarPartidosJugados() {
   try {
-    const [snapGrupos, snapElim] = await Promise.all([
-      getDocs(collection(db, 'resultados')),
-      getDocs(collection(db, 'res_ko'))
-    ]);
+    const snapElim = await getDocs(collection(db, 'res_ko'));
 
     let jugados = 0;
-    snapGrupos.forEach(d => { if (d.data().confirmado) jugados++; });
+    Object.values(RESULTADOS_GRUPOS_FINAL).forEach(r => { if (r.confirmado) jugados++; });
     snapElim.forEach(d => { if (d.data().confirmado) jugados++; });
 
     _partidosJugados = jugados;
