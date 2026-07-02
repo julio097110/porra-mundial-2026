@@ -16,6 +16,7 @@ import {
   getPartidosPorGrupo
 } from '../data/partidos.js';
 import { PARTIDOS_ELIM_R32, MAPA_DEPENDENCIAS } from '../data/partidos_elim.js';
+import { RESULTADOS_GRUPOS_FINAL } from '../data/resultados-grupos-final.js';
 
 // ── Estado del módulo ─────────────────────────────────────────
 let _app         = null;
@@ -1530,9 +1531,12 @@ async function cargarPrediccionesTerceros() {
   }
 }
 
+// Fase de grupos cerrada: resultados hardcodeados (ver
+// data/resultados-grupos-final.js). Si algún día se corrige un
+// resultado de grupos desde el admin, hay que avisar para
+// regenerar ese archivo.
 async function cargarResultados() {
-  const snap = await getDocs(collection(db, 'resultados'));
-  snap.forEach(d => { _resultados[d.id] = d.data(); });
+  _resultados = { ...RESULTADOS_GRUPOS_FINAL };
 }
 
 async function cargarTotalGlobal() {
