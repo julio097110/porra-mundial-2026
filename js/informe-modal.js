@@ -19,6 +19,8 @@ import {
   collection, doc, getDoc, getDocs, query, where
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { calcularPuntosPartidoElim } from './puntos-elim.js';
+import { RESULTADOS_GRUPOS_FINAL } from '../data/resultados-grupos-final.js';
+import { USUARIOS_FINAL } from '../data/usuarios-final.js';
 
 // ── Mapa estático de los 72 partidos de grupos ────────────────
 const PARTIDOS_GRUPOS_MAP = {
@@ -306,12 +308,11 @@ export async function abrirModalJugador(uid, nombre) {
   try {
     // ── Cargar datos en paralelo ──────────────────────────────
     const [
-      resGruposSnap, predGruposSnap,
+      predGruposSnap,
       resElimSnap,   predElimSnap,
       espSnap,       configSnap,
       predTercerosSnap
     ] = await Promise.all([
-      getDocs(collection(db, 'resultados')),
       getDocs(query(collection(db, 'predicciones'), where('uid', '==', uid))),
       getDocs(collection(db, 'res_ko')),
       getDocs(query(collection(db, 'pred_ko'), where('uid', '==', uid))),
@@ -320,9 +321,9 @@ export async function abrirModalJugador(uid, nombre) {
       getDoc(doc(db, 'pred_terceros', uid))
     ]);
 
-    // Resultados de grupos
-    const resGrupos = {};
-    resGruposSnap.forEach(d => { resGrupos[d.id] = d.data(); });
+    // Resultados de grupos: fase cerrada, hardcodeados
+    // (ver data/resultados-grupos-final.js)
+    const resGrupos = { ...RESULTADOS_GRUPOS_FINAL };
 
     // Predicciones de grupos del jugador
     const predGrupos = {};
@@ -701,28 +702,26 @@ export async function abrirModalPartido(partidoId, esElim) {
 
 // ── Modal partido de grupo ────────────────────────────────────
 async function _modalPartidoGrupo(partidoId) {
-  const [resSnap, predSnap, usuSnap] = await Promise.all([
-    getDoc(doc(db, 'resultados', partidoId)),
-    getDocs(query(collection(db, 'predicciones'), where('partido_id', '==', partidoId))),
-    getDocs(collection(db, 'usuarios'))
-  ]);
+  const res = RESULTADOS_GRUPOS_FINAL[partidoId];
 
-  if (!resSnap.exists() || !resSnap.data().confirmado) {
+  if (!res || !res.confirmado) {
     document.getElementById('modalBody').innerHTML =
       `<div class="notice">Este partido aún no tiene resultado confirmado.</div>`;
     return;
   }
 
-  const res   = resSnap.data();
+  const predSnap = await getDocs(
+    query(collection(db, 'predicciones'), where('partido_id', '==', partidoId))
+  );
+
   const info  = PARTIDOS_GRUPOS_MAP[partidoId] || {};
   const local = info.local     || res.equipo_local     || partidoId;
   const visit = info.visitante || res.equipo_visitante || '?';
 
-  // Mapa de nombres de jugadores
+  // Mapa de nombres de jugadores (lista cerrada, hardcodeada)
   const nombres = {};
-  usuSnap.forEach(d => {
-    const u = d.data();
-    nombres[d.id] = u.nombre_visible || u.username || d.id.slice(0, 6);
+  Object.entries(USUARIOS_FINAL).forEach(([id, u]) => {
+    nombres[id] = u.nombre_visible || u.username || id.slice(0, 6);
   });
 
   // Predicciones indexadas por uid
@@ -757,10 +756,9 @@ async function _modalPartidoGrupo(partidoId) {
 
 // ── Modal partido de eliminatorias ────────────────────────────
 async function _modalPartidoElim(partidoId) {
-  const [resSnap, predSnap, usuSnap] = await Promise.all([
+  const [resSnap, predSnap] = await Promise.all([
     getDoc(doc(db, 'res_ko', partidoId)),
-    getDocs(query(collection(db, 'pred_ko'), where('partido_id', '==', partidoId))),
-    getDocs(collection(db, 'usuarios'))
+    getDocs(query(collection(db, 'pred_ko'), where('partido_id', '==', partidoId)))
   ]);
 
   if (!resSnap.exists() || !resSnap.data().confirmado) {
@@ -775,11 +773,10 @@ async function _modalPartidoElim(partidoId) {
   const visit = res.equipo_visitante || '?';
   const pasa  = res.equipo_que_pasa  || '';
 
-  // Mapa de nombres de jugadores
+  // Mapa de nombres de jugadores (lista cerrada, hardcodeada)
   const nombres = {};
-  usuSnap.forEach(d => {
-    const u = d.data();
-    if (u.rol !== 'admin') nombres[d.id] = u.nombre_visible || u.username || d.id.slice(0, 6);
+  Object.entries(USUARIOS_FINAL).forEach(([id, u]) => {
+    if (u.rol !== 'admin') nombres[id] = u.nombre_visible || u.username || id.slice(0, 6);
   });
 
   // Predicciones indexadas por uid
