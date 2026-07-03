@@ -60,14 +60,8 @@
     background: #eef5ee;
     color: var(--tm);
   }
-  .notice.error {
-    background: #fdecea;
-    color: var(--r);
-  }
-  .notice.warn {
-    background: #fff6e0;
-    color: #856404;
-  }
+  .notice.error { background: #fdecea; color: var(--r); }
+  .notice.warn  { background: #fff6e0; color: #856404; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -86,11 +80,14 @@
     color: var(--ts);
   }
   td.num, th.num { text-align: right; }
-  tr.me-top td { font-weight: 700; color: var(--gd); }
-  .extra {
-    color: var(--tm);
-    font-size: 11px;
+  .extra { color: var(--tm); font-size: 11px; }
+  .jugador-nombre {
+    cursor: pointer;
+    color: var(--gd);
+    text-decoration: underline dotted;
   }
+  .jugador-nombre:hover { color: var(--gl); }
+  tr.fila-objetivo td { font-weight: 700; background: #f0f8f1; }
   .spinner {
     display: inline-block;
     width: 14px; height: 14px;
@@ -109,6 +106,27 @@
     margin-top: 14px;
     line-height: 1.5;
   }
+  .panel-escenario {
+    margin-top: 4px;
+    margin-bottom: 6px;
+    padding: 12px;
+    background: #f8fbf8;
+    border: 1px dashed #cfe3d4;
+    border-radius: 8px;
+  }
+  .panel-escenario h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--gd);
+  }
+  .lista-partidos {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--tm);
+  }
+  .lista-partidos div { border-bottom: 1px dotted #e0e8e2; padding: 3px 0; }
+  .lista-partidos b { color: #1c2a24; }
 </style>
 </head>
 <body>
@@ -130,7 +148,9 @@
     Solo lectura — no modifica ningún dato en Firestore. Calcula, para cada jugador, el mejor
     escenario posible del resto del cuadro de eliminatorias (incluyendo campeón y subcampeón),
     más los mejores terceros aún no marcados como confirmados. MVP y Máximo Goleador se muestran
-    aparte, sin sumar al total, porque no dependen del cuadro.
+    aparte, sin sumar al total, porque no dependen del cuadro. Pulsa el nombre de un jugador para
+    ver la clasificación completa que resultaría si todo se diera para que él tuviera su máximo
+    (en los partidos que no le afectan, se favorece a quien iría segundo en ese momento).
   </div>
 </div>
 
@@ -142,32 +162,33 @@ import {
 import {
   collection, doc, getDoc, getDocs
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { MAPA_DEPENDENCIAS, PARTIDOS_ELIM_R32 } from '../data/partidos_elim.js';
+import { MAPA_DEPENDENCIAS, PARTIDOS_ELIM_R32, PARTIDOS_ELIM_REST } from '../data/partidos_elim.js';
 
-// Mismo listado que previsiones.js / email.js — los 8 mejores terceros
-// reales, ya deterministas porque la fase de grupos está cerrada.
 const TERCEROS_PASARON = [
   'Bosnia y Herzegovina', 'Suecia', 'Ecuador', 'Paraguay',
   'Senegal', 'Argelia', 'RD Congo', 'Ghana'
 ];
 
-const authArea   = document.getElementById('authArea');
-const panelAdmin = document.getElementById('panelAdmin');
-const estadoEl   = document.getElementById('estado');
-const resultadoEl= document.getElementById('resultado');
+// Orden cronológico real de todos los partidos de eliminatoria previos
+// a semis (semis, final y 3er puesto se resuelven aparte).
+const ORDEN_CRONOLOGICO = [...PARTIDOS_ELIM_R32, ...PARTIDOS_ELIM_REST]
+  .filter(p => !['elim34', 'elimfin', 'elim2_1', 'elim2_2'].includes(p.id))
+  .sort((a, b) => new Date(a.fechaUTC) - new Date(b.fechaUTC))
+  .map(p => p.id);
+
+const authArea    = document.getElementById('authArea');
+const panelAdmin  = document.getElementById('panelAdmin');
+const estadoEl    = document.getElementById('estado');
+const resultadoEl = document.getElementById('resultado');
+
+let datosCache = null; // se rellena tras pulsar "Calcular", reutilizable al pinchar jugadores
 
 // ── Autenticación ──────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    mostrarNoAutorizado();
-    return;
-  }
+  if (!user) { mostrarNoAutorizado(); return; }
   try {
     const uSnap = await getDoc(doc(db, 'usuarios', user.uid));
-    if (!uSnap.exists() || uSnap.data().rol !== 'admin') {
-      mostrarNoAutorizado();
-      return;
-    }
+    if (!uSnap.exists() || uSnap.data().rol !== 'admin') { mostrarNoAutorizado(); return; }
     authArea.style.display = 'none';
     panelAdmin.style.display = 'block';
   } catch (e) {
@@ -178,25 +199,15 @@ onAuthStateChanged(auth, async (user) => {
 
 function mostrarNoAutorizado() {
   authArea.innerHTML = `
-    <div class="notice error">
-      ⚠️ No tienes acceso a esta página. Inicia sesión como administrador.
-    </div>
-    <div style="margin-top:10px;">
-      <a class="back" href="../index.html">← Volver al login</a>
-    </div>`;
+    <div class="notice error">⚠️ No tienes acceso a esta página. Inicia sesión como administrador.</div>
+    <div style="margin-top:10px;"><a class="back" href="../index.html">← Volver al login</a></div>`;
   panelAdmin.style.display = 'none';
 }
 
-// ── Helpers de normalización y puntuación ──────────────────────
+// ── Helpers básicos ──────────────────────────────────────────
 function norm(s) {
   return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
-
-// Puntos de un partido de eliminatoria en un escenario hipotético:
-// realLocal/realVis = equipos que realmente estarían en el cruce,
-// ganadorReal = quién de los dos gana. El marcador exacto se asume
-// siempre alcanzable en el mejor escenario, así que Regla B solo
-// depende de acertar los dos equipos en su posición correcta.
 function puntosPartido(pred, realLocal, realVis, ganadorReal) {
   if (!pred) return 0;
   let pts = 0;
@@ -204,21 +215,25 @@ function puntosPartido(pred, realLocal, realVis, ganadorReal) {
   if (pred.equipo_local === realLocal && pred.equipo_visitante === realVis) pts += 2;
   return pts;
 }
+function campeonSubcampeonPts(predEsp, ganador, perdedor) {
+  const campNorm = norm((predEsp && (predEsp.campeon_corregido || predEsp.campeon)) || '');
+  const subNorm  = norm((predEsp && (predEsp.subcampeon_corregido || predEsp.subcampeon)) || '');
+  let pts = 0;
+  if (campNorm && campNorm === norm(ganador))  pts += 6;
+  if (subNorm  && subNorm  === norm(perdedor)) pts += 2;
+  return pts;
+}
 
-// ── Candidatos "solo ganador" (R32 → R16 → QF) ─────────────────
-// Devuelve Map<equipo, puntosAdicionalesMaximos> asumiendo que ese
-// equipo termina siendo el que pasa de matchId. Usa res_ko como
-// verdad para partidos ya confirmados (0 puntos extra: ya contados
-// en el total actual).
+// ── DP "solo valor" (igual que la versión anterior) ────────────
 function bestWinnerMap(matchId, predMap, resMap) {
   const res = resMap[matchId];
   if (res && res.confirmado) {
+    if (res._hipotetico) return new Map([[res.equipo_que_pasa, res._puntosAcumulados || 0]]);
     return new Map([[res.equipo_que_pasa, 0]]);
   }
 
   const dep = MAPA_DEPENDENCIAS[matchId];
   if (!dep) {
-    // Partido de R32: los dos equipos son fijos y conocidos.
     const info = PARTIDOS_ELIM_R32.find(p => p.id === matchId);
     const pred = predMap[matchId];
     const m = new Map();
@@ -231,7 +246,6 @@ function bestWinnerMap(matchId, predMap, resMap) {
   const visMap   = bestWinnerMap(dep.vis,   predMap, resMap);
   const pred = predMap[matchId];
   const result = new Map();
-
   for (const [a, aPts] of localMap) {
     for (const [b, bPts] of visMap) {
       const base = aPts + bPts;
@@ -243,24 +257,19 @@ function bestWinnerMap(matchId, predMap, resMap) {
   }
   return result;
 }
-
-// ── Resultados posibles de una semifinal (ganador + perdedor) ──
-// Necesario porque el perdedor alimenta el partido de 3er/4º puesto,
-// no solo el ganador la final.
 function outcomesSemi(semiId, predMap, resMap) {
   const res = resMap[semiId];
   if (res && res.confirmado) {
     const winner = res.equipo_que_pasa;
     const loser  = winner === res.equipo_local ? res.equipo_visitante : res.equipo_local;
-    return [{ winner, loser, pts: 0 }];
+    const pts = res._hipotetico ? (res._puntosAcumulados || 0) : 0;
+    return [{ winner, loser, pts }];
   }
-
   const dep = MAPA_DEPENDENCIAS[semiId];
   const localMap = bestWinnerMap(dep.local, predMap, resMap);
   const visMap   = bestWinnerMap(dep.vis,   predMap, resMap);
   const pred = predMap[semiId];
   const outcomes = [];
-
   for (const [a, aPts] of localMap) {
     for (const [b, bPts] of visMap) {
       const base = aPts + bPts;
@@ -270,31 +279,19 @@ function outcomesSemi(semiId, predMap, resMap) {
   }
   return outcomes;
 }
-
-// ── Cálculo conjunto: semis + final + 3er/4º + campeón/subcampeón ──
-// Evalúa todas las combinaciones posibles de resultados de semis y
-// se queda con la que da más puntos totales al jugador — incluyendo
-// el caso en que le convenga "perder" un cruce de su bracket para
-// que se cumpla su predicción especial de campeón o subcampeón.
 function calcularMaxEtapaFinal(predMap, resMap, predEsp) {
   const o1s = outcomesSemi('elim2_1', predMap, resMap);
   const o2s = outcomesSemi('elim2_2', predMap, resMap);
-
-  const finConfirmado    = !!(resMap['elimfin'] && resMap['elimfin'].confirmado);
-  const bronceConfirmado = !!(resMap['elim34']  && resMap['elim34'].confirmado);
+  const finConfirmado    = !!(resMap['elimfin'] && resMap['elimfin'].confirmado && !resMap['elimfin']._hipotetico);
+  const bronceConfirmado = !!(resMap['elim34']  && resMap['elim34'].confirmado  && !resMap['elim34']._hipotetico);
   const predFinal  = predMap['elimfin'];
   const predBronce = predMap['elim34'];
 
-  const campNorm = norm((predEsp && (predEsp.campeon_corregido || predEsp.campeon)) || '');
-  const subNorm  = norm((predEsp && (predEsp.subcampeon_corregido || predEsp.subcampeon)) || '');
-
   let mejorTotal = 0;
-
   for (const o1 of o1s) {
     for (const o2 of o2s) {
       const base = o1.pts + o2.pts;
 
-      // 3er/4º puesto (independiente de quién gane la final)
       let ptsBronce = 0;
       if (!bronceConfirmado) {
         const b1 = puntosPartido(predBronce, o1.loser, o2.loser, o1.loser);
@@ -302,26 +299,22 @@ function calcularMaxEtapaFinal(predMap, resMap, predEsp) {
         ptsBronce = Math.max(b1, b2);
       }
 
-      // Final + campeón + subcampeón
       let ptsFinalTotal = 0;
       if (!finConfirmado) {
         for (const ganador of [o1.winner, o2.winner]) {
           const perdedor = ganador === o1.winner ? o2.winner : o1.winner;
           const pf = puntosPartido(predFinal, o1.winner, o2.winner, ganador);
-          const pc = (campNorm && campNorm === norm(ganador))  ? 6 : 0;
-          const ps = (subNorm  && subNorm  === norm(perdedor)) ? 2 : 0;
-          ptsFinalTotal = Math.max(ptsFinalTotal, pf + pc + ps);
+          const pcs = campeonSubcampeonPts(predEsp, ganador, perdedor);
+          ptsFinalTotal = Math.max(ptsFinalTotal, pf + pcs);
         }
       }
-
       mejorTotal = Math.max(mejorTotal, base + ptsBronce + ptsFinalTotal);
     }
   }
-
   return mejorTotal;
 }
 
-// ── Carga de datos ───────────────────────────────────────────────
+// ── Carga de datos ───────────────────────────────────────────
 async function cargarDatos() {
   const [usuariosSnap, resKoSnap, predKoSnap, predEspSnap, predTercSnap, clasifSnap, configSnap] =
     await Promise.all([
@@ -367,65 +360,298 @@ async function cargarDatos() {
   };
 }
 
-// ── Cálculo por jugador ─────────────────────────────────────────
-function calcularJugador(uid, datos) {
-  const predMap  = datos.predKoPorJugador[uid] || {};
-  const predEsp  = datos.predEspecialesPorJugador[uid] || null;
+function extraTercerosJugador(uid, datos) {
   const predTerc = (datos.predTercerosPorJugador[uid] && datos.predTercerosPorJugador[uid].equipos) || [];
-
-  const puntosActuales = datos.clasificacionPorUid[uid] || 0;
-
-  const maxEtapaFinal = calcularMaxEtapaFinal(predMap, datos.resMap, predEsp);
-
   const tercerosConfirmados = new Set(datos.config.terceros_confirmados || []);
-  let extraTerceros = 0;
+  let extra = 0;
   predTerc.forEach(equipo => {
-    if (TERCEROS_PASARON.includes(equipo) && !tercerosConfirmados.has(equipo)) extraTerceros += 0.5;
+    if (TERCEROS_PASARON.includes(equipo) && !tercerosConfirmados.has(equipo)) extra += 0.5;
   });
-
+  return extra;
+}
+function extraEspecialesJugador(uid, datos) {
+  const predEsp = datos.predEspecialesPorJugador[uid] || null;
   const mvpOfi = datos.config.mvp_oficial || '';
   const golOfi = datos.config.goleador_oficial || '';
   const extraMvp = (!mvpOfi && predEsp && predEsp.mvp) ? 3 : 0;
   const extraGol = (!golOfi && predEsp && predEsp.goleador) ? 3 : 0;
+  return extraMvp + extraGol;
+}
 
+// ── Cálculo del "máx. posible" por jugador (tabla principal) ──
+function calcularJugador(uid, datos) {
+  const predMap = datos.predKoPorJugador[uid] || {};
+  const predEsp = datos.predEspecialesPorJugador[uid] || null;
+  const puntosActuales = datos.clasificacionPorUid[uid] || 0;
+  const maxEtapaFinal = calcularMaxEtapaFinal(predMap, datos.resMap, predEsp);
+  const extraTerceros = extraTercerosJugador(uid, datos);
   return {
     puntosActuales,
     maxPosible: puntosActuales + maxEtapaFinal + extraTerceros,
-    extraEspeciales: extraMvp + extraGol
+    extraEspeciales: extraEspecialesJugador(uid, datos)
   };
 }
 
+// ── Reconstrucción del escenario óptimo para un jugador concreto ──
+// Cada partido fijado hipotéticamente guarda en _puntosAcumulados el
+// total de puntos que el jugador objetivo lleva acumulados en TODA
+// esa rama del cuadro hasta este punto (no solo los de este partido),
+// para que el resto del cálculo (bestWinnerMap/outcomesSemi) no
+// "olvide" los puntos de las rondas anteriores al tratar este partido
+// como resuelto.
+function fijarResultado(matchId, local, vis, ganador, hipotetico, puntosAcumulados) {
+  return {
+    partido_id: matchId,
+    equipo_local: local,
+    equipo_visitante: vis,
+    equipo_que_pasa: ganador,
+    confirmado: true,
+    _hipotetico: !!hipotetico,
+    _puntosAcumulados: puntosAcumulados || 0
+  };
+}
+
+function puntosAcumuladosDe(matchId, resSimulado) {
+  const r = resSimulado[matchId];
+  if (!r) return 0;
+  return r._hipotetico ? (r._puntosAcumulados || 0) : 0;
+}
+
+function obtenerParCandidato(matchId, resSimulado) {
+  const dep = MAPA_DEPENDENCIAS[matchId];
+  if (!dep) {
+    const info = PARTIDOS_ELIM_R32.find(p => p.id === matchId);
+    return [info.local, info.visitante];
+  }
+  return [resSimulado[dep.local].equipo_que_pasa, resSimulado[dep.vis].equipo_que_pasa];
+}
+
+function sumarPuntosPartidoParaTodos(matchId, resultado, datos, puntosProvisionales) {
+  datos.usuarios.forEach(u => {
+    const pred = (datos.predKoPorJugador[u.uid] || {})[matchId];
+    puntosProvisionales[u.uid] = (puntosProvisionales[u.uid] || 0) +
+      puntosPartido(pred, resultado.equipo_local, resultado.equipo_visitante, resultado.equipo_que_pasa);
+
+    if (matchId === 'elimfin') {
+      const esp = datos.predEspecialesPorJugador[u.uid];
+      const perdedor = resultado.equipo_que_pasa === resultado.equipo_local
+        ? resultado.equipo_visitante : resultado.equipo_local;
+      puntosProvisionales[u.uid] += campeonSubcampeonPts(esp, resultado.equipo_que_pasa, perdedor);
+    }
+  });
+}
+
+function elegirParaSegundoPuesto(matchId, eqA, eqB, datos, uidObjetivo, puntosProvisionales) {
+  const otros = datos.usuarios
+    .filter(u => u.uid !== uidObjetivo)
+    .slice()
+    .sort((a, b) => (puntosProvisionales[b.uid] || 0) - (puntosProvisionales[a.uid] || 0));
+
+  for (const cand of otros) {
+    const pred = (datos.predKoPorJugador[cand.uid] || {})[matchId];
+    if (!pred) continue;
+    const pA = puntosPartido(pred, eqA, eqB, eqA);
+    const pB = puntosPartido(pred, eqA, eqB, eqB);
+    if (pA !== pB) return pA > pB ? eqA : eqB;
+  }
+  return eqA; // a nadie le importa este partido -> resultado arbitrario
+}
+
+// Decide el resultado de un partido pendiente dentro de la reconstrucción:
+// si una única opción preserva el máximo del jugador objetivo, esa es forzosa;
+// si ambas lo preservan, el partido es indiferente para él y se resuelve a
+// favor de quien vaya mejor situado en ese momento (opción 2 acordada).
+function decidirPartido(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales) {
+  const [eqA, eqB] = obtenerParCandidato(matchId, resSimulado);
+  const dep = MAPA_DEPENDENCIAS[matchId];
+  const accBase = dep
+    ? (puntosAcumuladosDe(dep.local, resSimulado) + puntosAcumuladosDe(dep.vis, resSimulado))
+    : 0;
+  const predOwn = predMapObjetivo[matchId];
+  const ownPtsA = puntosPartido(predOwn, eqA, eqB, eqA);
+  const ownPtsB = puntosPartido(predOwn, eqA, eqB, eqB);
+
+  const resA = { ...resSimulado, [matchId]: fijarResultado(matchId, eqA, eqB, eqA, true, accBase + ownPtsA) };
+  const resB = { ...resSimulado, [matchId]: fijarResultado(matchId, eqA, eqB, eqB, true, accBase + ownPtsB) };
+  const maxSiA = calcularMaxEtapaFinal(predMapObjetivo, resA, predEspObjetivo);
+  const maxSiB = calcularMaxEtapaFinal(predMapObjetivo, resB, predEspObjetivo);
+
+  let elegido;
+  if (maxSiA === targetMax && maxSiB === targetMax) {
+    elegido = elegirParaSegundoPuesto(matchId, eqA, eqB, datos, uidObjetivo, puntosProvisionales);
+  } else if (maxSiA === targetMax) {
+    elegido = eqA;
+  } else {
+    elegido = eqB; // por construcción, si A no preserva el máximo, B debe hacerlo
+  }
+
+  const puntosAcum = accBase + (elegido === eqA ? ownPtsA : ownPtsB);
+  const resultado = fijarResultado(matchId, eqA, eqB, elegido, true, puntosAcum);
+  resSimulado[matchId] = resultado;
+  sumarPuntosPartidoParaTodos(matchId, resultado, datos, puntosProvisionales);
+  return resultado;
+}
+
+// Devuelve el bracket completo (real + hipotético) que maximiza al
+// jugador objetivo, resolviendo los partidos indiferentes a favor
+// de quien vaya segundo en cada momento (opción 2 acordada).
+function reconstruirEscenario(uidObjetivo, datos) {
+  const predMapObjetivo = datos.predKoPorJugador[uidObjetivo] || {};
+  const predEspObjetivo = datos.predEspecialesPorJugador[uidObjetivo] || null;
+  const targetMax = calcularMaxEtapaFinal(predMapObjetivo, datos.resMap, predEspObjetivo);
+
+  const resSimulado = { ...datos.resMap };
+  const puntosProvisionales = {};
+  datos.usuarios.forEach(u => { puntosProvisionales[u.uid] = datos.clasificacionPorUid[u.uid] || 0; });
+
+  // 1) R32 → R16 → QF, en orden cronológico real
+  for (const matchId of ORDEN_CRONOLOGICO) {
+    if (resSimulado[matchId] && resSimulado[matchId].confirmado) continue;
+    decidirPartido(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+  }
+
+  // 2) Semifinales
+  ['elim2_1', 'elim2_2'].forEach(semiId => {
+    if (resSimulado[semiId] && resSimulado[semiId].confirmado) return;
+    decidirPartido(semiId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+  });
+
+  // 3) 3er/4º puesto (perdedores de las semis) — no afecta a la final
+  if (!(resSimulado['elim34'] && resSimulado['elim34'].confirmado)) {
+    const p1 = resSimulado['elim2_1'].equipo_que_pasa === resSimulado['elim2_1'].equipo_local
+      ? resSimulado['elim2_1'].equipo_visitante : resSimulado['elim2_1'].equipo_local;
+    const p2 = resSimulado['elim2_2'].equipo_que_pasa === resSimulado['elim2_2'].equipo_local
+      ? resSimulado['elim2_2'].equipo_visitante : resSimulado['elim2_2'].equipo_local;
+
+    const predBronce = predMapObjetivo['elim34'];
+    const pp1 = puntosPartido(predBronce, p1, p2, p1);
+    const pp2 = puntosPartido(predBronce, p1, p2, p2);
+
+    let elegido;
+    if (pp1 === pp2) {
+      elegido = elegirParaSegundoPuesto('elim34', p1, p2, datos, uidObjetivo, puntosProvisionales);
+    } else {
+      elegido = pp1 > pp2 ? p1 : p2;
+    }
+
+    const resultado = fijarResultado('elim34', p1, p2, elegido, true, Math.max(pp1, pp2));
+    resSimulado['elim34'] = resultado;
+    sumarPuntosPartidoParaTodos('elim34', resultado, datos, puntosProvisionales);
+  }
+
+  // 4) Final + campeón/subcampeón
+  if (!(resSimulado['elimfin'] && resSimulado['elimfin'].confirmado)) {
+    const f1 = resSimulado['elim2_1'].equipo_que_pasa;
+    const f2 = resSimulado['elim2_2'].equipo_que_pasa;
+
+    const predFinal = predMapObjetivo['elimfin'];
+    const pf1 = puntosPartido(predFinal, f1, f2, f1) + campeonSubcampeonPts(predEspObjetivo, f1, f2);
+    const pf2 = puntosPartido(predFinal, f1, f2, f2) + campeonSubcampeonPts(predEspObjetivo, f2, f1);
+
+    let elegido;
+    if (pf1 === pf2) {
+      elegido = elegirParaSegundoPuesto('elimfin', f1, f2, datos, uidObjetivo, puntosProvisionales);
+    } else {
+      elegido = pf1 > pf2 ? f1 : f2;
+    }
+
+    const resultado = fijarResultado('elimfin', f1, f2, elegido, true, Math.max(pf1, pf2));
+    resSimulado['elimfin'] = resultado;
+    sumarPuntosPartidoParaTodos('elimfin', resultado, datos, puntosProvisionales);
+  }
+
+  // Clasificación teórica final (+ terceros deterministas de cada jugador)
+  const filas = datos.usuarios.map(u => ({
+    uid: u.uid,
+    nombre: u.nombre_visible || u.username || u.uid,
+    total: Math.round(((puntosProvisionales[u.uid] || 0) + extraTercerosJugador(u.uid, datos)) * 2) / 2,
+    extraEspeciales: extraEspecialesJugador(u.uid, datos)
+  }));
+  filas.sort((a, b) => b.total - a.total);
+
+  const partidosHipoteticos = Object.values(resSimulado)
+    .filter(r => r._hipotetico)
+    .sort((a, b) => ORDEN_CRONOLOGICO.concat(['elim2_1', 'elim2_2', 'elim34', 'elimfin']).indexOf(a.partido_id)
+                   - ORDEN_CRONOLOGICO.concat(['elim2_1', 'elim2_2', 'elim34', 'elimfin']).indexOf(b.partido_id));
+
+  return { filas, partidosHipoteticos };
+}
+
 // ── Render ────────────────────────────────────────────────────
-function renderTabla(filas) {
+function nombreRonda(id) {
+  if (id.startsWith('elim16')) return 'R32';
+  if (id.startsWith('elim8'))  return 'R16';
+  if (id.startsWith('elim4'))  return 'Cuartos';
+  if (id.startsWith('elim2'))  return 'Semifinal';
+  if (id === 'elim34')  return '3er/4º puesto';
+  if (id === 'elimfin') return 'Final';
+  return id;
+}
+
+function renderPanelEscenario(uid, datos) {
+  const { filas, partidosHipoteticos } = reconstruirEscenario(uid, datos);
+
+  let html = `<div class="panel-escenario">
+    <h4>📊 Clasificación teórica si ${filas.find(f => f.uid === uid)?.nombre || ''} llega a su máximo</h4>
+    <table>
+      <thead><tr><th>#</th><th>Jugador</th><th class="num">Puntos</th></tr></thead>
+      <tbody>`;
+  filas.forEach((f, i) => {
+    const extraTxt = f.extraEspeciales > 0 ? ` <span class="extra">(+${f.extraEspeciales} MVP/Gol.)</span>` : '';
+    html += `<tr class="${f.uid === uid ? 'fila-objetivo' : ''}">
+        <td>${i + 1}</td><td>${f.nombre}</td><td class="num">${f.total}${extraTxt}</td>
+      </tr>`;
+  });
+  html += `</tbody></table>`;
+
+  html += `<div class="lista-partidos">`;
+  partidosHipoteticos.forEach(r => {
+    html += `<div>[${nombreRonda(r.partido_id)}] ${r.equipo_local} vs ${r.equipo_visitante} → pasa <b>${r.equipo_que_pasa}</b></div>`;
+  });
+  html += `</div></div>`;
+
+  return html;
+}
+
+function renderTabla(filas, datos) {
   filas.sort((a, b) => b.maxPosible - a.maxPosible);
 
   let html = `
     <table>
       <thead>
-        <tr>
-          <th>#</th>
-          <th>Jugador</th>
-          <th class="num">Pts. actuales</th>
-          <th class="num">Máx. posible</th>
-        </tr>
+        <tr><th>#</th><th>Jugador</th><th class="num">Pts. actuales</th><th class="num">Máx. posible</th></tr>
       </thead>
       <tbody>`;
 
   filas.forEach((f, i) => {
-    const extraTxt = f.extraEspeciales > 0
-      ? ` <span class="extra">(+${f.extraEspeciales} MVP/Gol.)</span>`
-      : '';
+    const extraTxt = f.extraEspeciales > 0 ? ` <span class="extra">(+${f.extraEspeciales} MVP/Gol.)</span>` : '';
     html += `
         <tr>
           <td>${i + 1}</td>
-          <td>${f.nombre}</td>
+          <td class="jugador-nombre" data-uid="${f.uid}">${f.nombre}</td>
           <td class="num">${f.puntosActuales}</td>
           <td class="num">${f.maxPosible}${extraTxt}</td>
-        </tr>`;
+        </tr>
+        <tr id="panel_${f.uid}" style="display:none;"><td colspan="4"></td></tr>`;
   });
 
   html += `</tbody></table>`;
   resultadoEl.innerHTML = html;
+
+  resultadoEl.querySelectorAll('.jugador-nombre').forEach(el => {
+    el.addEventListener('click', () => {
+      const uid = el.dataset.uid;
+      const filaPanel = document.getElementById(`panel_${uid}`);
+      const abierto = filaPanel.style.display !== 'none';
+      if (abierto) {
+        filaPanel.style.display = 'none';
+        filaPanel.querySelector('td').innerHTML = '';
+      } else {
+        filaPanel.querySelector('td').innerHTML = renderPanelEscenario(uid, datos);
+        filaPanel.style.display = '';
+      }
+    });
+  });
 }
 
 // ── Botón principal ──────────────────────────────────────────
@@ -446,19 +672,17 @@ document.getElementById('btnCalcular').addEventListener('click', async () => {
   try {
     const t0 = performance.now();
     const datos = await cargarDatos();
+    datosCache = datos;
 
     const filas = datos.usuarios.map(u => {
       const calc = calcularJugador(u.uid, datos);
-      return {
-        nombre: u.nombre_visible || u.username || u.uid,
-        ...calc
-      };
+      return { uid: u.uid, nombre: u.nombre_visible || u.username || u.uid, ...calc };
     });
 
     const t1 = performance.now();
     clearTimeout(avisoLento);
     estadoEl.innerHTML = `<div class="notice">✅ Calculado en ${Math.round(t1 - t0)} ms</div>`;
-    renderTabla(filas);
+    renderTabla(filas, datos);
 
   } catch (e) {
     clearTimeout(avisoLento);
