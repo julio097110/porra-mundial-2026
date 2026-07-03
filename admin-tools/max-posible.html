@@ -492,6 +492,20 @@ function decidirPartido(matchId, resSimulado, predMapObjetivo, predEspObjetivo, 
   return resultado;
 }
 
+// Garantiza que un partido (y todo lo que depende de él hacia atrás) esté
+// resuelto en resSimulado antes de usarlo, sin depender de que el orden de
+// iteración externo respete la topología real del cuadro (más robusto ante
+// fechas reales atípicas, aplazamientos, etc.).
+function asegurarResuelto(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales) {
+  if (resSimulado[matchId] && resSimulado[matchId].confirmado) return;
+  const dep = MAPA_DEPENDENCIAS[matchId];
+  if (dep) {
+    asegurarResuelto(dep.local, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+    asegurarResuelto(dep.vis,   resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+  }
+  decidirPartido(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+}
+
 // Devuelve el bracket completo (real + hipotético) que maximiza al
 // jugador objetivo, resolviendo los partidos indiferentes a favor
 // de quien vaya segundo en cada momento (opción 2 acordada).
@@ -504,16 +518,16 @@ function reconstruirEscenario(uidObjetivo, datos) {
   const puntosProvisionales = {};
   datos.usuarios.forEach(u => { puntosProvisionales[u.uid] = datos.clasificacionPorUid[u.uid] || 0; });
 
-  // 1) R32 → R16 → QF, en orden cronológico real
+  // 1) R32 → R16 → QF (el orden cronológico es solo una guía razonable para
+  //    "quién va segundo en cada momento"; la resolución de dependencias en
+  //    sí es recursiva y no depende de que el orden sea perfecto)
   for (const matchId of ORDEN_CRONOLOGICO) {
-    if (resSimulado[matchId] && resSimulado[matchId].confirmado) continue;
-    decidirPartido(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+    asegurarResuelto(matchId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
   }
 
   // 2) Semifinales
   ['elim2_1', 'elim2_2'].forEach(semiId => {
-    if (resSimulado[semiId] && resSimulado[semiId].confirmado) return;
-    decidirPartido(semiId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
+    asegurarResuelto(semiId, resSimulado, predMapObjetivo, predEspObjetivo, targetMax, datos, uidObjetivo, puntosProvisionales);
   });
 
   // 3) 3er/4º puesto (perdedores de las semis) — no afecta a la final
@@ -646,8 +660,15 @@ function renderTabla(filas, datos) {
       if (abierto) {
         filaPanel.style.display = 'none';
         filaPanel.querySelector('td').innerHTML = '';
-      } else {
+        return;
+      }
+      try {
         filaPanel.querySelector('td').innerHTML = renderPanelEscenario(uid, datos);
+        filaPanel.style.display = '';
+      } catch (e) {
+        console.error('[renderPanelEscenario]', uid, e);
+        filaPanel.querySelector('td').innerHTML =
+          `<div class="notice error">⚠️ Error al calcular este escenario: ${e.message}. Revisa la consola.</div>`;
         filaPanel.style.display = '';
       }
     });
