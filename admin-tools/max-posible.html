@@ -127,6 +127,26 @@
   }
   .lista-partidos div { border-bottom: 1px dotted #e0e8e2; padding: 3px 0; }
   .lista-partidos b { color: #1c2a24; }
+  .sel-ronda {
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid #cfe3d4;
+    font-size: 13px;
+    margin-bottom: 10px;
+    background: #fff;
+    color: #1c2a24;
+  }
+  .metodo-opciones {
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #1c2a24;
+  }
+  .metodo-opciones label { margin-right: 18px; cursor: pointer; }
+  h3.panel-title {
+    margin: 0 0 10px;
+    font-size: 15px;
+    color: var(--gd);
+  }
 </style>
 </head>
 <body>
@@ -144,6 +164,30 @@
     <div id="resultado"></div>
   </div>
 
+  <div id="panelProb" class="card" style="display:none;">
+    <h3 class="panel-title">📊 Probabilidad de podio</h3>
+
+    <label style="font-size:12px; color:var(--tm); display:block; margin-bottom:4px;">Ronda actual</label>
+    <select id="selectorRonda" class="sel-ronda">
+      <option value="r32">Dieciseisavos (R32)</option>
+      <option value="r16">Octavos (R16)</option>
+      <option value="qf">Cuartos</option>
+      <option value="semi">Semifinales</option>
+      <option value="final">Final</option>
+    </select>
+
+    <div id="recomendacionModelo" class="notice" style="margin-bottom:10px;"></div>
+
+    <div class="metodo-opciones">
+      <label><input type="radio" name="metodoCalculo" id="metodo_monte_carlo" value="monte_carlo" checked> Monte Carlo (50.000 simulaciones)</label>
+      <label><input type="radio" name="metodoCalculo" id="metodo_exacto" value="exacto"> Exacto</label>
+    </div>
+
+    <button id="btnProbabilidades" class="btn">🎲 Calcular probabilidades</button>
+    <div id="estadoProb" style="margin-top:12px;"></div>
+    <div id="resultadoProb"></div>
+  </div>
+
   <div class="foot-note">
     Solo lectura — no modifica ningún dato en Firestore. Calcula, para cada jugador, el mejor
     escenario posible del resto del cuadro de eliminatorias (incluyendo campeón y subcampeón),
@@ -151,6 +195,11 @@
     aparte, sin sumar al total, porque no dependen del cuadro. Pulsa el nombre de un jugador para
     ver la clasificación completa que resultaría si todo se diera para que él tuviera su máximo
     (en los partidos que no le afectan, se favorece a quien iría segundo en ese momento).
+    <br><br>
+    La tabla de "Probabilidad de podio" simula los partidos pendientes con marcadores aleatorios
+    entre 0-3 por equipo (equiprobables), resolviendo los empates a penaltis al 50%. No tiene en
+    cuenta MVP, Máximo Goleador, terceros pendientes (se tratan como ya fijos) ni el estado de
+    pago — es la posición deportiva pura, no el reparto real del premio.
   </div>
 </div>
 
@@ -180,6 +229,11 @@ const authArea    = document.getElementById('authArea');
 const panelAdmin  = document.getElementById('panelAdmin');
 const estadoEl    = document.getElementById('estado');
 const resultadoEl = document.getElementById('resultado');
+const panelProb        = document.getElementById('panelProb');
+const selectorRondaEl  = document.getElementById('selectorRonda');
+const recomendacionEl  = document.getElementById('recomendacionModelo');
+const estadoProbEl     = document.getElementById('estadoProb');
+const resultadoProbEl  = document.getElementById('resultadoProb');
 
 let datosCache = null; // se rellena tras pulsar "Calcular", reutilizable al pinchar jugadores
 
@@ -191,6 +245,7 @@ onAuthStateChanged(auth, async (user) => {
     if (!uSnap.exists() || uSnap.data().rol !== 'admin') { mostrarNoAutorizado(); return; }
     authArea.style.display = 'none';
     panelAdmin.style.display = 'block';
+    panelProb.style.display = 'block';
   } catch (e) {
     console.error('[auth]', e);
     mostrarNoAutorizado();
@@ -202,6 +257,7 @@ function mostrarNoAutorizado() {
     <div class="notice error">⚠️ No tienes acceso a esta página. Inicia sesión como administrador.</div>
     <div style="margin-top:10px;"><a class="back" href="../index.html">← Volver al login</a></div>`;
   panelAdmin.style.display = 'none';
+  panelProb.style.display = 'none';
 }
 
 // ── Helpers básicos ──────────────────────────────────────────
@@ -591,6 +647,307 @@ function reconstruirEscenario(uidObjetivo, datos) {
   return { filas, partidosHipoteticos };
 }
 
+// ══════════════════════════════════════════════════════════════
+//  PROBABILIDAD DE PODIO — Monte Carlo / Exacto
+// ══════════════════════════════════════════════════════════════
+
+// Orden topológico completo del cuadro (R32→R16→QF, igual que
+// ORDEN_CRONOLOGICO, más semis, 3er puesto y final al final).
+const ORDEN_TOPOLOGICO_COMPLETO = ORDEN_CRONOLOGICO.concat(['elim2_1', 'elim2_2', 'elim34', 'elimfin']);
+
+// Por encima de este nº de escenarios, el modo exacto se rechaza
+// (20^5 = 3.200.000 ya es demasiado para el navegador).
+const LIMITE_ESCENARIOS_EXACTO = 300000;
+
+const RECOMENDACION_POR_RONDA = {
+  r32: 'monte_carlo', r16: 'monte_carlo', qf: 'monte_carlo',
+  semi: 'exacto', final: 'exacto'
+};
+const NOMBRE_RONDA_LEGIBLE = {
+  r32: 'Dieciseisavos', r16: 'Octavos', qf: 'Cuartos', semi: 'Semifinales', final: 'Final'
+};
+
+// Igual que puntosPartido, pero exige el marcador EXACTO para la Regla B
+// (a diferencia del "máx. posible", aquí ya tenemos un marcador simulado
+// concreto, así que se aplica la regla real de puntos-elim.js).
+function puntosPartidoConMarcador(pred, realLocal, realVis, ganadorReal, golesLocal, golesVis) {
+  if (!pred) return 0;
+  let pts = 0;
+  if (pred.ganador && pred.ganador === ganadorReal) pts += 2;
+  if (pred.equipo_local === realLocal && pred.equipo_visitante === realVis) {
+    const pl = parseInt(pred.local);
+    const pv = parseInt(pred.visitante);
+    if (!isNaN(pl) && !isNaN(pv) && pl === golesLocal && pv === golesVis) pts += 2;
+  }
+  return pts;
+}
+
+// Par de equipos candidatos de un partido pendiente, dado lo ya resuelto.
+// elim34 es un caso especial: enfrenta a los PERDEDORES de las semis, no
+// a los ganadores (a diferencia de obtenerParCandidato, pensada para el
+// resto de cruces del cuadro).
+function obtenerParCandidatoGeneral(matchId, resSim) {
+  if (matchId === 'elim34') {
+    const s1 = resSim['elim2_1'], s2 = resSim['elim2_2'];
+    const p1 = s1.equipo_que_pasa === s1.equipo_local ? s1.equipo_visitante : s1.equipo_local;
+    const p2 = s2.equipo_que_pasa === s2.equipo_local ? s2.equipo_visitante : s2.equipo_local;
+    return [p1, p2];
+  }
+  return obtenerParCandidato(matchId, resSim);
+}
+
+// Sortea un marcador 0-3 por equipo (16 combinaciones equiprobables).
+// En empate, decide quién pasa a penaltis con un 50/50 adicional.
+function simularMarcadorAleatorio(eqA, eqB) {
+  const gA = Math.floor(Math.random() * 4);
+  const gB = Math.floor(Math.random() * 4);
+  let ganador, perdedor;
+  if (gA > gB) { ganador = eqA; perdedor = eqB; }
+  else if (gB > gA) { ganador = eqB; perdedor = eqA; }
+  else { [ganador, perdedor] = Math.random() < 0.5 ? [eqA, eqB] : [eqB, eqA]; }
+  return { golesLocal: gA, golesVis: gB, ganador, perdedor };
+}
+
+// Posición visual con "salto" por empate — igual que calcularPosicionesVisuales
+// en clasificacion.js: empatados comparten posición, el siguiente salta el hueco.
+function calcularPosicionesConSalto(filasOrdenadas) {
+  const pos = new Map();
+  let p = 1;
+  for (let i = 0; i < filasOrdenadas.length; i++) {
+    if (i > 0 && filasOrdenadas[i].total === filasOrdenadas[i - 1].total) {
+      pos.set(filasOrdenadas[i].uid, pos.get(filasOrdenadas[i - 1].uid));
+    } else {
+      pos.set(filasOrdenadas[i].uid, p);
+    }
+    p++;
+  }
+  return pos;
+}
+
+function contarPartidosPendientes(resMap) {
+  return ORDEN_TOPOLOGICO_COMPLETO.filter(id => !(resMap[id] && resMap[id].confirmado)).length;
+}
+
+// Detecta la ronda actual (la primera, en orden de bracket, que aún
+// tenga algún partido sin confirmar) y actualiza el selector + la
+// recomendación. El admin puede seguir cambiando el selector a mano.
+function detectarRondaActual(resMap) {
+  const rondasOrden = ['r32', 'r16', 'qf', 'semi', 'final'];
+  const partidosTodos = [...PARTIDOS_ELIM_R32, ...PARTIDOS_ELIM_REST];
+  let rondaDetectada = 'final';
+  for (const ronda of rondasOrden) {
+    const idsRonda = partidosTodos
+      .filter(p => p.ronda === ronda || (ronda === 'final' && p.ronda === '3er'))
+      .map(p => p.id);
+    if (idsRonda.some(id => !(resMap[id] && resMap[id].confirmado))) {
+      rondaDetectada = ronda;
+      break;
+    }
+  }
+  if (selectorRondaEl) selectorRondaEl.value = rondaDetectada;
+  actualizarRecomendacion();
+  return rondaDetectada;
+}
+
+function actualizarRecomendacion() {
+  const ronda = selectorRondaEl.value;
+  const recomendado = RECOMENDACION_POR_RONDA[ronda];
+  document.getElementById('metodo_' + recomendado).checked = true;
+
+  let extra = '';
+  if (datosCache) {
+    const pendientes = contarPartidosPendientes(datosCache.resMap);
+    const escenarios = Math.pow(20, pendientes);
+    const escenariosTxt = escenarios.toLocaleString('es-ES');
+    extra = ` — ${pendientes} partido${pendientes === 1 ? '' : 's'} pendiente${pendientes === 1 ? '' : 's'} en total` +
+      (escenarios > LIMITE_ESCENARIOS_EXACTO
+        ? ` (el modo exacto probaría ${escenariosTxt} combinaciones — inviable)`
+        : ` (el modo exacto probaría ${escenariosTxt} combinaciones)`);
+  }
+
+  recomendacionEl.innerHTML = recomendado === 'monte_carlo'
+    ? `🎲 En ${NOMBRE_RONDA_LEGIBLE[ronda]} se recomienda <b>Monte Carlo</b>${extra}.`
+    : `🎯 En ${NOMBRE_RONDA_LEGIBLE[ronda]} se recomienda el modo <b>Exacto</b>${extra}.`;
+}
+
+// Una pasada de Monte Carlo: resuelve todo el cuadro pendiente con
+// marcadores aleatorios y devuelve los puntos EXTRA (sobre los ya
+// confirmados) que suma cada jugador en esta simulación concreta.
+function simularUnaVezMonteCarlo(datos) {
+  const resSim = { ...datos.resMap };
+  const extra = {};
+  datos.usuarios.forEach(u => { extra[u.uid] = 0; });
+
+  ORDEN_TOPOLOGICO_COMPLETO.forEach(matchId => {
+    if (resSim[matchId] && resSim[matchId].confirmado) return;
+
+    const [eqA, eqB] = obtenerParCandidatoGeneral(matchId, resSim);
+    const { golesLocal, golesVis, ganador, perdedor } = simularMarcadorAleatorio(eqA, eqB);
+    resSim[matchId] = {
+      equipo_local: eqA, equipo_visitante: eqB,
+      goles_local: golesLocal, goles_visitante: golesVis,
+      equipo_que_pasa: ganador, confirmado: true
+    };
+
+    datos.usuarios.forEach(u => {
+      const pred = (datos.predKoPorJugador[u.uid] || {})[matchId];
+      extra[u.uid] += puntosPartidoConMarcador(pred, eqA, eqB, ganador, golesLocal, golesVis);
+      if (matchId === 'elimfin') {
+        const esp = datos.predEspecialesPorJugador[u.uid];
+        extra[u.uid] += campeonSubcampeonPts(esp, ganador, perdedor);
+      }
+    });
+  });
+
+  return extra;
+}
+
+function ejecutarMonteCarlo(datos, nSim) {
+  const extraTercerosPorUid = {};
+  datos.usuarios.forEach(u => { extraTercerosPorUid[u.uid] = extraTercerosJugador(u.uid, datos); });
+
+  const counts = {};
+  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; });
+
+  for (let s = 0; s < nSim; s++) {
+    const extra = simularUnaVezMonteCarlo(datos);
+    const filas = datos.usuarios.map(u => ({
+      uid: u.uid,
+      total: (datos.clasificacionPorUid[u.uid] || 0) + extraTercerosPorUid[u.uid] + extra[u.uid]
+    }));
+    filas.sort((a, b) => b.total - a.total);
+    const posiciones = calcularPosicionesConSalto(filas);
+    datos.usuarios.forEach(u => {
+      const pos = posiciones.get(u.uid);
+      if (pos === 1) counts[u.uid].p1++;
+      else if (pos === 2) counts[u.uid].p2++;
+      else if (pos === 3) counts[u.uid].p3++;
+    });
+  }
+
+  return datos.usuarios.map(u => ({
+    uid: u.uid,
+    nombre: u.nombre_visible || u.username || u.uid,
+    pct1: counts[u.uid].p1 / nSim * 100,
+    pct2: counts[u.uid].p2 / nSim * 100,
+    pct3: counts[u.uid].p3 / nSim * 100,
+    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) / nSim * 100
+  }));
+}
+
+// Enumeración exacta: prueba las 20 ramas de cada partido pendiente
+// (16 marcadores, de los cuales 4 son empates que se dividen en 2
+// ramas de "quién pasa" cada una), acumulando la probabilidad real
+// de cada combinación completa del cuadro.
+function enumerarExacto(datos) {
+  const pendientes = ORDEN_TOPOLOGICO_COMPLETO.filter(id => !(datos.resMap[id] && datos.resMap[id].confirmado));
+  const totalEscenarios = Math.pow(20, pendientes.length);
+  if (totalEscenarios > LIMITE_ESCENARIOS_EXACTO) {
+    throw new Error(
+      `Demasiados escenarios para el modo exacto (${totalEscenarios.toLocaleString('es-ES')} combinaciones con ` +
+      `${pendientes.length} partidos pendientes). Usa Monte Carlo.`
+    );
+  }
+
+  const extraTercerosPorUid = {};
+  datos.usuarios.forEach(u => { extraTercerosPorUid[u.uid] = extraTercerosJugador(u.uid, datos); });
+
+  const counts = {};
+  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; });
+
+  function aplicarResultado(matchId, resSim, extra, eqA, eqB, gA, gB, ganador, perdedor) {
+    const nuevoRes = { ...resSim, [matchId]: {
+      equipo_local: eqA, equipo_visitante: eqB,
+      goles_local: gA, goles_visitante: gB,
+      equipo_que_pasa: ganador, confirmado: true
+    }};
+    const nuevoExtra = { ...extra };
+    datos.usuarios.forEach(u => {
+      const pred = (datos.predKoPorJugador[u.uid] || {})[matchId];
+      nuevoExtra[u.uid] = (nuevoExtra[u.uid] || 0) + puntosPartidoConMarcador(pred, eqA, eqB, ganador, gA, gB);
+      if (matchId === 'elimfin') {
+        const esp = datos.predEspecialesPorJugador[u.uid];
+        nuevoExtra[u.uid] += campeonSubcampeonPts(esp, ganador, perdedor);
+      }
+    });
+    return { nuevoRes, nuevoExtra };
+  }
+
+  function recorrer(idx, resSim, extra, peso) {
+    if (idx === pendientes.length) {
+      const filas = datos.usuarios.map(u => ({
+        uid: u.uid,
+        total: (datos.clasificacionPorUid[u.uid] || 0) + extraTercerosPorUid[u.uid] + extra[u.uid]
+      }));
+      filas.sort((a, b) => b.total - a.total);
+      const posiciones = calcularPosicionesConSalto(filas);
+      datos.usuarios.forEach(u => {
+        const pos = posiciones.get(u.uid);
+        if (pos === 1) counts[u.uid].p1 += peso;
+        else if (pos === 2) counts[u.uid].p2 += peso;
+        else if (pos === 3) counts[u.uid].p3 += peso;
+      });
+      return;
+    }
+
+    const matchId = pendientes[idx];
+    const [eqA, eqB] = obtenerParCandidatoGeneral(matchId, resSim);
+
+    for (let gA = 0; gA <= 3; gA++) {
+      for (let gB = 0; gB <= 3; gB++) {
+        if (gA !== gB) {
+          const ganador = gA > gB ? eqA : eqB;
+          const perdedor = gA > gB ? eqB : eqA;
+          const { nuevoRes, nuevoExtra } = aplicarResultado(matchId, resSim, extra, eqA, eqB, gA, gB, ganador, perdedor);
+          recorrer(idx + 1, nuevoRes, nuevoExtra, peso / 16);
+        } else {
+          [[eqA, eqB], [eqB, eqA]].forEach(([ganador, perdedor]) => {
+            const { nuevoRes, nuevoExtra } = aplicarResultado(matchId, resSim, extra, eqA, eqB, gA, gB, ganador, perdedor);
+            recorrer(idx + 1, nuevoRes, nuevoExtra, peso / 32);
+          });
+        }
+      }
+    }
+  }
+
+  const extraInicial = {};
+  datos.usuarios.forEach(u => { extraInicial[u.uid] = 0; });
+  recorrer(0, { ...datos.resMap }, extraInicial, 1);
+
+  return datos.usuarios.map(u => ({
+    uid: u.uid,
+    nombre: u.nombre_visible || u.username || u.uid,
+    pct1: counts[u.uid].p1 * 100,
+    pct2: counts[u.uid].p2 * 100,
+    pct3: counts[u.uid].p3 * 100,
+    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) * 100
+  }));
+}
+
+function renderTablaProbabilidades(filas) {
+  filas.sort((a, b) => b.pctPremio - a.pctPremio);
+
+  let html = `
+    <table>
+      <thead>
+        <tr><th>#</th><th>Jugador</th><th class="num">%1º</th><th class="num">%2º</th><th class="num">%3º</th><th class="num">%Premio</th></tr>
+      </thead>
+      <tbody>`;
+  filas.forEach((f, i) => {
+    html += `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${f.nombre}</td>
+          <td class="num">${f.pct1.toFixed(1)}%</td>
+          <td class="num">${f.pct2.toFixed(1)}%</td>
+          <td class="num">${f.pct3.toFixed(1)}%</td>
+          <td class="num"><b>${f.pctPremio.toFixed(1)}%</b></td>
+        </tr>`;
+  });
+  html += `</tbody></table>`;
+  resultadoProbEl.innerHTML = html;
+}
+
 // ── Render ────────────────────────────────────────────────────
 function nombreRonda(id) {
   if (id.startsWith('elim16')) return 'R32';
@@ -694,6 +1051,7 @@ document.getElementById('btnCalcular').addEventListener('click', async () => {
     const t0 = performance.now();
     const datos = await cargarDatos();
     datosCache = datos;
+    detectarRondaActual(datos.resMap);
 
     const filas = datos.usuarios.map(u => {
       const calc = calcularJugador(u.uid, datos);
@@ -709,6 +1067,52 @@ document.getElementById('btnCalcular').addEventListener('click', async () => {
     clearTimeout(avisoLento);
     console.error('[calcularMaxPosible]', e);
     estadoEl.innerHTML = `<div class="notice error">⚠️ Error al calcular. Revisa la consola.</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ── Selector de ronda ───────────────────────────────────────────
+selectorRondaEl.addEventListener('change', actualizarRecomendacion);
+actualizarRecomendacion(); // texto inicial, antes de cargar ningún dato
+
+// ── Botón de probabilidades ─────────────────────────────────────
+document.getElementById('btnProbabilidades').addEventListener('click', async () => {
+  const btn = document.getElementById('btnProbabilidades');
+  btn.disabled = true;
+  estadoProbEl.innerHTML = `<div class="notice"><span class="spinner"></span>Calculando…</div>`;
+  resultadoProbEl.innerHTML = '';
+
+  const avisoLento = setTimeout(() => {
+    estadoProbEl.innerHTML = `
+      <div class="notice warn">
+        ⏳ Esto está tardando más de lo normal — si elegiste el modo exacto con muchos partidos
+        pendientes, prueba con Monte Carlo. Si no termina, revisa la consola.
+      </div>`;
+  }, 5000);
+
+  try {
+    const t0 = performance.now();
+    if (!datosCache) {
+      datosCache = await cargarDatos();
+      detectarRondaActual(datosCache.resMap);
+    }
+
+    const metodo = document.querySelector('input[name="metodoCalculo"]:checked').value;
+    const filasProb = metodo === 'exacto'
+      ? enumerarExacto(datosCache)
+      : ejecutarMonteCarlo(datosCache, 50000);
+
+    const t1 = performance.now();
+    clearTimeout(avisoLento);
+    const metodoTxt = metodo === 'exacto' ? 'modo exacto' : '50.000 simulaciones Monte Carlo';
+    estadoProbEl.innerHTML = `<div class="notice">✅ Calculado en ${Math.round(t1 - t0)} ms (${metodoTxt})</div>`;
+    renderTablaProbabilidades(filasProb);
+
+  } catch (e) {
+    clearTimeout(avisoLento);
+    console.error('[calcularProbabilidades]', e);
+    estadoProbEl.innerHTML = `<div class="notice error">⚠️ ${e.message || 'Error al calcular. Revisa la consola.'}</div>`;
   } finally {
     btn.disabled = false;
   }
