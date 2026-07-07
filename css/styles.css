@@ -1045,3 +1045,66 @@ h1, h2, h3 { line-height: 1.2; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
 .w-full { width: 100%; }
+/* ── Bracket de Resultados (jugador + admin) — añadido jul 2026 ── */
+
+/* Estado "pendiente de ronda anterior" (equipos aún no determinados) */
+.bracket-match.pending { opacity: .5; }
+
+/* Marcador ya confirmado, mostrado como texto (vista jugador y admin) */
+.bm-score {
+  font-size: 13px; font-weight: 800; color: var(--gd);
+  margin-left: auto; flex-shrink: 0; min-width: 18px; text-align: center;
+}
+
+/* Botón de lupa (ver desglose de puntos) dentro de la caja */
+.bm-info-btn {
+  background: none; border: none; cursor: pointer; font-size: 12px;
+  padding: 0 2px; color: var(--tm); line-height: 1;
+}
+
+.bm-tag-ok { color: var(--gl); font-weight: 700; margin-left: 4px; }
+
+.bm-note {
+  font-size: 10px; color: var(--tm); padding: 3px 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* ── Cajas grandes de admin (escala x1.5) ── */
+.bracket-match.admin-lg .bm-date {
+  font-size: 11px; padding: 5px 10px;
+}
+.bracket-match.admin-lg .bm-team {
+  padding: 6px 10px; min-height: 34px;
+}
+.bracket-match.admin-lg .bm-name { font-size: 13px; }
+.bracket-match.admin-lg .bm-flag { font-size: 17px; }
+.bracket-match.admin-lg.confirmed { border-color: var(--gl); }
+
+.bm-input-lg {
+  width: 42px; height: 30px; text-align: center; font-size: 13px; font-weight: 700;
+  border-radius: 5px; border: 1px solid #d0dfc0; background: var(--gg); color: var(--gd);
+  flex-shrink: 0; outline: none; -moz-appearance: textfield; appearance: textfield;
+  margin-left: auto;
+}
+.bm-input-lg:disabled { background: #f0f0f0; color: #ccc; border-color: #e8e8e8; }
+.bm-input-lg::-webkit-outer-spin-button,
+.bm-input-lg::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.bracket-match.admin-lg .bm-tiebreak { padding: 5px 10px; gap: 6px; }
+.bracket-match.admin-lg .bm-tb-label { font-size: 10px; }
+.bracket-match.admin-lg .bm-tb-btn {
+  font-size: 10px; padding: 3px 8px; max-width: 110px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.bm-admin-actions {
+  display: flex; gap: 6px; padding: 6px 8px;
+  border-top: 1px solid #f0f0f0; background: #fafafa;
+}
+.bm-act-btn {
+  flex: 1; font-size: 11px; padding: 5px 4px; border-radius: 5px;
+  border: 1px solid #ddd; background: #fff; cursor: pointer; white-space: nowrap;
+}
+.bm-act-btn.primary { background: var(--gm); color: #fff; border-color: var(--gm); font-weight: 700; }
+.bm-act-btn.edit    { color: var(--t); }
+.bm-act-btn.danger  { color: #b02a2a; border-color: #f0c0c0; }
