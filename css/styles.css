@@ -1101,10 +1101,4 @@ h1, h2, h3 { line-height: 1.2; }
   display: flex; gap: 6px; padding: 6px 8px;
   border-top: 1px solid #f0f0f0; background: #fafafa;
 }
-.bm-act-btn {
-  flex: 1; font-size: 11px; padding: 5px 4px; border-radius: 5px;
-  border: 1px solid #ddd; background: #fff; cursor: pointer; white-space: nowrap;
-}
-.bm-act-btn.primary { background: var(--gm); color: #fff; border-color: var(--gm); font-weight: 700; }
-.bm-act-btn.edit    { color: var(--t); }
-.bm-act-btn.danger  { color: #b02a2a; border-color: #f0c0c0; }
+.bm-admin-actions .btn-sm { flex: 1; white-space: nowrap; }
