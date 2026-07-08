@@ -511,8 +511,8 @@ function renderMatchBracket(entry, tipo) {
           ? `<div class="bm-note">⚽ Pasa (prórroga/penaltis): <strong>${res.equipo_que_pasa}</strong></div>`
           : ''}
         <div class="bm-admin-actions">
-          <button class="bm-act-btn edit" onclick="window._editarResElim('${id}')">✏️ Editar</button>
-          <button class="bm-act-btn danger" onclick="window._borrarResElim('${id}')">🗑️ Borrar</button>
+          <button class="btn btn-secondary btn-sm" onclick="window._editarResElim('${id}')">✏️ Editar</button>
+          <button class="btn btn-danger btn-sm" onclick="window._borrarResElim('${id}')">🗑️ Borrar</button>
         </div>
       </div>`;
   }
@@ -545,7 +545,7 @@ function renderMatchBracket(entry, tipo) {
           title="${nomV}" onclick="window._seleccionarPasaElim('${id}', 'visitante')">${nomV}</button>
       </div>
       <div class="bm-admin-actions">
-        <button class="bm-act-btn primary" onclick="window._confirmarResElim('${id}')">✓ ${t('scores.confirmBtn')}</button>
+        <button class="btn btn-primary btn-sm" onclick="window._confirmarResElim('${id}')">✓ ${t('scores.confirmBtn')}</button>
       </div>
     </div>`;
 }
