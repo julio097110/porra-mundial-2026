@@ -370,6 +370,15 @@ function renderVistaEliminatorias(pagina) {
 
           const res = _resultadosElim[p.id];
 
+          // Partido concreto (equipos reales) que ESTE jugador predijo para esta ronda.
+          // Solo a partir de octavos: en 1/16 el partido ya es real y fijo en la cabecera.
+          let equiposTexto = '';
+          if (fase.id !== '1/16') {
+            const eqL = pred.equipo_local     ? abreviar(pred.equipo_local, 4)     : '?';
+            const eqV = pred.equipo_visitante ? abreviar(pred.equipo_visitante, 4) : '?';
+            equiposTexto = `<div style="font-size:9px; color:var(--tm); margin-bottom:2px;">${eqL} vs ${eqV}</div>`;
+          }
+
           // Color del marcador: verde si equipos Y goles coinciden exactamente (90'),
           // rojo si hay resultado confirmado pero no coincide, sin color si pendiente.
           let scoreColor = '';
@@ -400,7 +409,7 @@ function renderVistaEliminatorias(pagina) {
             : '';
 
           return `<div class="prev-cell" style="font-size:10px; line-height:1.4;">
-            ${scoreTexto}${ganadorTexto}
+            ${equiposTexto}${scoreTexto}${ganadorTexto}
           </div>`;
         }).join('')}
       </div>`;
