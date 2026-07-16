@@ -814,7 +814,8 @@ function ejecutarMonteCarlo(datos, nSim) {
   datos.usuarios.forEach(u => { extraTercerosPorUid[u.uid] = extraTercerosJugador(u.uid, datos); });
 
   const counts = {};
-  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; });
+  const sumTotal = {};
+  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; sumTotal[u.uid] = 0; });
 
   for (let s = 0; s < nSim; s++) {
     const extra = simularUnaVezMonteCarlo(datos);
@@ -824,6 +825,7 @@ function ejecutarMonteCarlo(datos, nSim) {
     }));
     filas.sort((a, b) => b.total - a.total);
     const posiciones = calcularPosicionesConSalto(filas);
+    filas.forEach(f => { sumTotal[f.uid] += f.total; });
     datos.usuarios.forEach(u => {
       const pos = posiciones.get(u.uid);
       if (pos === 1) counts[u.uid].p1++;
@@ -838,7 +840,8 @@ function ejecutarMonteCarlo(datos, nSim) {
     pct1: counts[u.uid].p1 / nSim * 100,
     pct2: counts[u.uid].p2 / nSim * 100,
     pct3: counts[u.uid].p3 / nSim * 100,
-    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) / nSim * 100
+    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) / nSim * 100,
+    puntuacionMedia: sumTotal[u.uid] / nSim
   }));
 }
 
@@ -860,7 +863,8 @@ function enumerarExacto(datos) {
   datos.usuarios.forEach(u => { extraTercerosPorUid[u.uid] = extraTercerosJugador(u.uid, datos); });
 
   const counts = {};
-  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; });
+  const sumTotalPeso = {};
+  datos.usuarios.forEach(u => { counts[u.uid] = { p1: 0, p2: 0, p3: 0 }; sumTotalPeso[u.uid] = 0; });
 
   function aplicarResultado(matchId, resSim, extra, eqA, eqB, gA, gB, ganador, perdedor) {
     const nuevoRes = { ...resSim, [matchId]: {
@@ -888,6 +892,7 @@ function enumerarExacto(datos) {
       }));
       filas.sort((a, b) => b.total - a.total);
       const posiciones = calcularPosicionesConSalto(filas);
+      filas.forEach(f => { sumTotalPeso[f.uid] += f.total * peso; });
       datos.usuarios.forEach(u => {
         const pos = posiciones.get(u.uid);
         if (pos === 1) counts[u.uid].p1 += peso;
@@ -927,7 +932,8 @@ function enumerarExacto(datos) {
     pct1: counts[u.uid].p1 * 100,
     pct2: counts[u.uid].p2 * 100,
     pct3: counts[u.uid].p3 * 100,
-    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) * 100
+    pctPremio: (counts[u.uid].p1 + counts[u.uid].p2 + counts[u.uid].p3) * 100,
+    puntuacionMedia: sumTotalPeso[u.uid]
   }));
 }
 
@@ -937,7 +943,7 @@ function renderTablaProbabilidades(filas) {
   let html = `
     <table>
       <thead>
-        <tr><th>#</th><th>Jugador</th><th class="num">%1º</th><th class="num">%2º</th><th class="num">%3º</th><th class="num">%Premio</th></tr>
+        <tr><th>#</th><th>Jugador</th><th class="num">%1º</th><th class="num">%2º</th><th class="num">%3º</th><th class="num">%Premio</th><th class="num">Puntos medios</th></tr>
       </thead>
       <tbody>`;
   filas.forEach((f, i) => {
@@ -949,6 +955,7 @@ function renderTablaProbabilidades(filas) {
           <td class="num">${f.pct2.toFixed(1)}%</td>
           <td class="num">${f.pct3.toFixed(1)}%</td>
           <td class="num"><b>${f.pctPremio.toFixed(1)}%</b></td>
+          <td class="num">${f.puntuacionMedia.toFixed(1)}</td>
         </tr>`;
   });
   html += `</tbody></table>`;
