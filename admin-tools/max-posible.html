@@ -498,6 +498,7 @@ function sumarPuntosPartidoParaTodos(matchId, resultado, datos, puntosProvisiona
 }
 
 function elegirParaSegundoPuesto(matchId, eqA, eqB, datos, uidObjetivo, puntosProvisionales) {
+  const esFinal = matchId === 'elimfin';
   const otros = datos.usuarios
     .filter(u => u.uid !== uidObjetivo)
     .slice()
@@ -505,9 +506,15 @@ function elegirParaSegundoPuesto(matchId, eqA, eqB, datos, uidObjetivo, puntosPr
 
   for (const cand of otros) {
     const pred = (datos.predKoPorJugador[cand.uid] || {})[matchId];
-    if (!pred) continue;
-    const pA = puntosPartido(pred, eqA, eqB, eqA);
-    const pB = puntosPartido(pred, eqA, eqB, eqB);
+    const esp  = esFinal ? (datos.predEspecialesPorJugador[cand.uid] || null) : null;
+    if (!pred && !esp) continue;
+    // En la final, el desempate debe tener en cuenta también el bonus de
+    // campeón (+6) y subcampeón (+2), no solo los puntos del partido (+4
+    // máx.) — de lo contrario un jugador con mucho más en juego (hasta 8
+    // pts extra) podría perder el desempate frente a otro que solo acierta
+    // el ganador del partido.
+    const pA = puntosPartido(pred, eqA, eqB, eqA) + (esFinal ? campeonSubcampeonPts(esp, eqA, eqB) : 0);
+    const pB = puntosPartido(pred, eqA, eqB, eqB) + (esFinal ? campeonSubcampeonPts(esp, eqB, eqA) : 0);
     if (pA !== pB) return pA > pB ? eqA : eqB;
   }
   return eqA; // a nadie le importa este partido -> resultado arbitrario
@@ -1093,10 +1100,11 @@ document.getElementById('btnProbabilidades').addEventListener('click', async () 
 
   try {
     const t0 = performance.now();
-    if (!datosCache) {
-      datosCache = await cargarDatos();
-      detectarRondaActual(datosCache.resMap);
-    }
+    // Siempre se recargan datos frescos de Firestore (igual que hace el
+    // botón "Calcular máx. posible"), para evitar usar una datosCache
+    // obsoleta si entretanto se ha confirmado algún resultado.
+    datosCache = await cargarDatos();
+    detectarRondaActual(datosCache.resMap);
 
     const metodo = document.querySelector('input[name="metodoCalculo"]:checked').value;
     const filasProb = metodo === 'exacto'
